@@ -8,6 +8,13 @@
       "when": 1775167725303,
       "tag": "0000_lame_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778198377621,
+      "tag": "0001_misty_pride",
+      "breakpoints": true
     }
   ]
 }

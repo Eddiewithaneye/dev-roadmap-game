@@ -1,5 +1,8 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
+
+config({ path: '.env.local' });
+config();
 
 const migrationsUrl = process.env.DATABASE_URL_MIGRATIONS;
 
