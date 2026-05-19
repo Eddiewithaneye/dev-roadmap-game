@@ -1,10 +1,11 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import { auth, signIn, signOut } from "@/auth";
 
 export default async function Home() {
   const session = await auth();
-  const user = session?.user;
+  const userName = session?.user?.name ?? session?.user?.email ?? "Developer";
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
@@ -19,52 +20,56 @@ export default async function Home() {
         />
         <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
           <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            Dev roadmap game
+            Codebound
           </h1>
           <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            {user
-              ? `Signed in as ${user.name ?? user.email ?? "a roadmap builder"}.`
-              : "Sign in with Google to start saving your developer roadmap progress."}
+            Build your developer roadmap as a playable fantasy-tech game.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          {user ? (
-            <form
-              action={async () => {
-                "use server";
-                await signOut();
-              }}
-              className="w-full sm:w-auto"
-            >
-              <button
-                className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-                type="submit"
+        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row sm:items-center">
+          <Link
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] sm:w-auto"
+            href="/game"
+          >
+            Play Codebound
+          </Link>
+          {session ? (
+            <>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Signed in as{" "}
+                <span className="font-medium text-zinc-950 dark:text-zinc-50">
+                  {userName}
+                </span>
+              </p>
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut();
+                }}
               >
-                Sign out
-              </button>
-            </form>
+                <button
+                  className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] sm:w-auto"
+                  type="submit"
+                >
+                  Logout
+                </button>
+              </form>
+            </>
           ) : (
             <form
               action={async () => {
                 "use server";
                 await signIn("google");
               }}
-              className="w-full sm:w-auto"
             >
               <button
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[190px]"
+                className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] sm:w-auto"
                 type="submit"
               >
-                Sign in with Google
+                Test Login Flow
               </button>
             </form>
           )}
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="/api/test-db"
-          >
-            Test DB
-          </a>
         </div>
       </main>
     </div>
