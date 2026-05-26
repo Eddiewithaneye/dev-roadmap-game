@@ -1,6 +1,5 @@
-// importing my component
-import GameShell from "@/components/GameShell";
+import { GameShell } from "@/components/game-shell";
 
-export default function GamePage(){
-    return <GameShell />;
+export default function GamePage() {
+  return <GameShell />;
 }
