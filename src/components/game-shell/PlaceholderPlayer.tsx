@@ -1,14 +1,21 @@
 import type { CSSProperties } from "react";
 
-import { PLAYER_PLACEHOLDER_TUNING } from "@/lib/game/player";
+import {
+  PLAYER_PLACEHOLDER_TUNING,
+  type PlayerPosition,
+} from "@/lib/game/player";
 
-export function PlaceholderPlayer() {
+type PlaceholderPlayerProps = {
+  position: PlayerPosition;
+};
+
+export function PlaceholderPlayer({ position }: PlaceholderPlayerProps) {
   const playerStyle = {
-    left: `${PLAYER_PLACEHOLDER_TUNING.xPercent}%`,
-    top: `${PLAYER_PLACEHOLDER_TUNING.groundYPercent}%`,
+    left: `${position.xPercent}%`,
+    top: `${position.groundYPercent}%`,
     width: `${PLAYER_PLACEHOLDER_TUNING.widthPx}px`,
     height: `${PLAYER_PLACEHOLDER_TUNING.heightPx}px`,
-    transform: `translate(-50%, -100%) scale(${PLAYER_PLACEHOLDER_TUNING.scale})`,
+    transform: `translate(-50%, -100%) scaleX(${position.facing}) scale(${PLAYER_PLACEHOLDER_TUNING.scale})`,
     transformOrigin: "center bottom",
   } satisfies CSSProperties;
 
