@@ -1,7 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import WeaponPanel from "@/components/WeaponPanel";
+import EnemyPanel from "@/components/EnemyPanel";
+import { attackEnemy, canAttack, getCooldownRemaining, spawnBoss, type Enemy } from "@/lib/game/combat";
+import { javascriptLanguageWeapon } from "@/lib/game/weapons";
+import type { Weapon } from "@/types/weapon";
 
 type ResourceStatProps = {
   icon: string;
@@ -17,19 +22,17 @@ type PlayerCardProps = {
 
 type AbilitySlotProps = {
   icon: string;
+  imageSrc?: string;
   label: string;
   locked?: boolean;
+  active?: boolean;
+  onClick?: () => void;
 };
 
 type XpBarProps = {
   level: number;
   xp: number;
   xpGoal: number;
-};
-
-type BossBarProps = {
-  enemies: number;
-  maxEnemies: number;
 };
 
 type GameShellProps = {
@@ -93,15 +96,27 @@ function PlayerCard({ health, level, maxHealth }: PlayerCardProps) {
 }
 
 // Ability slots form the bottom-center action bar.
-function AbilitySlot({ icon, label, locked = false }: AbilitySlotProps) {
+function AbilitySlot({ icon, imageSrc, label, locked = false, active = false, onClick }: AbilitySlotProps) {
   return (
-    <div className="flex h-24 w-24 flex-col items-center justify-center border-2 border-cyan-300/30 bg-black/75">
-      {/* Locked slots are dimmed but keep the same size so the layout does not jump. */}
-      <div className={locked ? "text-3xl text-zinc-500" : "text-3xl text-cyan-300"}>
-        {locked ? "🔒" : icon}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={locked}
+      className={`pointer-events-auto flex h-24 w-24 flex-col items-center justify-center border-2 bg-black/75 transition ${
+        active ? "border-cyan-300 bg-cyan-500/10 shadow-[0_0_30px_rgba(56,189,248,0.25)]" : "border-cyan-300/30"
+      } ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-cyan-200"}`}
+    >
+      <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/20 bg-[#081a23] text-3xl">
+        {locked ? (
+          <span className="text-zinc-500">🔒</span>
+        ) : imageSrc ? (
+          <img src={imageSrc} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-cyan-300">{icon}</span>
+        )}
       </div>
       <div className="mt-2 text-sm font-bold text-white">{label}</div>
-    </div>
+    </button>
   );
 }
 
@@ -125,26 +140,6 @@ function XpBar({ level, xp, xpGoal }: XpBarProps) {
   );
 }
 
-// This lower-right bar gives the HUD a target/enemy objective area.
-function BossBar({ enemies, maxEnemies }: BossBarProps) {
-  const progress = Math.max(0, (enemies / maxEnemies) * 100);
-
-  return (
-    <div className="w-[520px] border-2 border-purple-400/40 bg-black/75 p-2">
-      {/* Label row for the enemy target. */}
-      <div className="mb-1 flex items-center justify-between text-sm font-bold uppercase">
-        <span className="text-purple-300">Data Colossus</span>
-        <span className="text-cyan-200">{enemies} enemies</span>
-      </div>
-
-      {/* Red bar shrinks as the temporary enemy count goes down. */}
-      <div className="h-4 overflow-hidden bg-[#18080d]">
-        <div className="h-full bg-red-500" style={{ width: `${progress}%` }} />
-      </div>
-    </div>
-  );
-}
-
 export default function GameShell({ children }: GameShellProps) {
   // These state values are temporary game data until Phaser sends real updates.
   const [health, setHealth] = useState(100);
@@ -152,10 +147,51 @@ export default function GameShell({ children }: GameShellProps) {
   const [cred, setCred] = useState(3560);
   const [xp, setXp] = useState(1250);
   const [enemies, setEnemies] = useState(5);
+  const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
+  const [enemy, setEnemy] = useState<Enemy>(spawnBoss());
+  const [readyAt, setReadyAt] = useState(0);
+  const [isAttacking, setIsAttacking] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [selectedSlot, setSelectedSlot] = useState<"language" | null>(null);
   const level = 12;
   const maxHealth = 312;
   const xpGoal = 2000;
   const maxEnemies = 5;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const weaponReady = canAttack(readyAt, now);
+  const cooldownRemaining = getCooldownRemaining(readyAt, now);
+  const isWeaponPanelOpen = selectedSlot === "language";
+
+  const handleAttack = () => {
+    if (!weaponReady) return;
+
+    const result = attackEnemy(weapon, enemy, now);
+    setEnemy((current) => ({ ...current, health: result.enemyHealth }));
+    setReadyAt(result.newCooldownReadyAt);
+    setIsAttacking(true);
+
+    if (result.isEnemyDefeated) {
+      setTimeout(() => {
+        setEnemies((count) => Math.max(0, count - 1));
+        setEnemy(spawnBoss());
+      }, 600);
+    }
+
+    window.setTimeout(() => setIsAttacking(false), 250);
+  };
+
+  const toggleLanguageSlot = () => {
+    setSelectedSlot((current) => (current === "language" ? null : "language"));
+  };
+
+  const updateWeaponField = (field: "damage" | "cooldown" | "range", value: number) => {
+    setWeapon((current) => ({ ...current, [field]: value }));
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
@@ -166,36 +202,57 @@ export default function GameShell({ children }: GameShellProps) {
       <section className="pointer-events-auto absolute left-1/2 top-24 z-20 -translate-x-1/2">
         <div className="flex gap-3">
           <button
-            className="border border-cyan-300/40 bg-black/60 px-4 py-2"
+            className="cursor-pointer hover:border-cyan-200 border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setHealth(Math.max(0, health - 10))}
           >
             Take Damage
           </button>
           <button
-            className="border border-cyan-300/40 bg-black/60 px-4 py-2"
+            className="cursor-pointer hover:border-cyan-200 border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setCodeFragments(codeFragments + 100)}
           >
             Add Fragments
           </button>
           <button
-            className="border border-cyan-300/40 bg-black/60 px-4 py-2"
+            className="cursor-pointer hover:border-cyan-200 border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setCred(cred + 50)}
           >
             Add Cred
           </button>
           <button
-            className="border border-cyan-300/40 bg-black/60 px-4 py-2"
+            className="cursor-pointer hover:border-cyan-200 border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setXp(Math.min(xpGoal, xp + 125))}
           >
             Add XP
           </button>
           <button
-            className="border border-cyan-300/40 bg-black/60 px-4 py-2"
+            className="cursor-pointer hover:border-cyan-200 border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setEnemies(Math.max(0, enemies - 1))}
           >
             Defeat Enemy
           </button>
         </div>
+
+        {isWeaponPanelOpen && (
+          <WeaponPanel
+            weapon={weapon}
+            isReady={weaponReady}
+            cooldownRemaining={cooldownRemaining}
+            onAttack={handleAttack}
+            onDamageChange={(value) => updateWeaponField("damage", value)}
+            onCooldownChange={(value) => updateWeaponField("cooldown", value)}
+            onRangeChange={(value) => updateWeaponField("range", value)}
+          />
+        )}
+
+        {isAttacking && (
+          <div className="pointer-events-none absolute left-1/2 top-1/3 -translate-x-1/2">
+            <div className="relative flex h-24 w-24 items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-cyan-300/30 blur-xl animate-ping" />
+              <div className="relative h-12 w-12 rounded-full bg-cyan-200/90 shadow-[0_0_30px_rgba(56,189,248,0.85)]" />
+            </div>
+          </div>
+        )}
       </section>
 
       {/* The HUD layer sits over the scene and does not block game input. */}
@@ -252,7 +309,13 @@ export default function GameShell({ children }: GameShellProps) {
           {/* Center group: ability slots stacked above the XP bar. */}
           <div className="flex flex-col items-center gap-3">
             <div className="flex gap-3">
-              <AbilitySlot icon="⚒" label="Lv. 3" />
+                  <AbilitySlot
+                icon={weapon.icon}
+                imageSrc={weapon.imageSrc}
+                label="Lv. 3"
+                active={selectedSlot === "language"}
+                onClick={toggleLanguageSlot}
+              />
               <AbilitySlot icon="⌁" label="Lv. 3" />
               <AbilitySlot icon="" label="Lv. 6" locked />
               <AbilitySlot icon="" label="Lv. 10" locked />
@@ -261,7 +324,7 @@ export default function GameShell({ children }: GameShellProps) {
           </div>
 
           {/* Right group: current enemy objective. */}
-          <BossBar enemies={enemies} maxEnemies={maxEnemies} />
+          <EnemyPanel enemy={enemy} enemies={enemies} maxEnemies={maxEnemies} />
         </section>
       </div>
     </main>
