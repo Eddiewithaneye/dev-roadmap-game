@@ -2,6 +2,7 @@ import { AbilitySlot } from "./AbilitySlot";
 import { EnemyPanel } from "./EnemyPanel";
 import { PlayerCard } from "./PlayerCard";
 import { ResourceStat } from "./ResourceStat";
+import { SettingsMenu } from "./SettingsMenu";
 import { XpBar } from "./XpBar";
 import type { GameHudProps } from "./types";
 
@@ -18,7 +19,12 @@ export function GameHud({
   enemy,
   weapon,
   selectedSlot,
+  weaponCooldownProgress,
+  isDevMode,
+  isSettingsOpen,
   onLanguageSlotClick,
+  onSettingsClick,
+  onDevModeChange,
 }: GameHudProps) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -49,11 +55,24 @@ export function GameHud({
             value={codeFragments}
           />
           <ResourceStat icon="◎" label="Cred" value={cred} />
-          <div className="ml-5 border-2 border-cyan-300/40 bg-black/40 px-3 py-2 text-2xl">
+          <button
+            type="button"
+            className="pointer-events-auto ml-5 cursor-pointer border-2 border-cyan-300/40 bg-black/40 px-3 py-2 text-2xl transition hover:border-cyan-200 hover:bg-cyan-500/10"
+            onClick={onSettingsClick}
+            aria-expanded={isSettingsOpen}
+            aria-label="Open settings"
+          >
             ⚙
-          </div>
+          </button>
         </div>
       </section>
+
+      {isSettingsOpen ? (
+        <SettingsMenu
+          isDevMode={isDevMode}
+          onDevModeChange={onDevModeChange}
+        />
+      ) : null}
 
       <section className="absolute bottom-6 left-6 right-6 flex items-end justify-between gap-6">
         <div className="flex gap-3">
@@ -72,6 +91,7 @@ export function GameHud({
               icon={weapon.icon}
               imageSrc={weapon.imageSrc}
               label="Lv. 3"
+              cooldownProgress={weaponCooldownProgress}
               onClick={onLanguageSlotClick}
             />
             <AbilitySlot icon="⌁" label="Lv. 3" />

@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   attackEnemy,
   canAttack,
+  damageEnemy,
   getCooldownRemaining,
   spawnEnemy,
 } from "@/game/domain/combat";
@@ -14,7 +15,7 @@ import type { Weapon } from "@/types/weapon";
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
-import type { WeaponPanelMode } from "./types";
+import type { DevToolsPosition } from "./types";
 
 type GameShellProps = {
   children: ReactNode;
@@ -33,14 +34,19 @@ export function GameShell({ children }: GameShellProps) {
   const [isAttacking, setIsAttacking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [selectedSlot, setSelectedSlot] = useState<"language" | null>(null);
-  const [weaponPanelMode, setWeaponPanelMode] =
-    useState<WeaponPanelMode>("player");
+  const [isDevMode, setIsDevMode] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [devToolsPosition, setDevToolsPosition] =
+    useState<DevToolsPosition>("top");
   const level = 12;
   const maxHealth = 312;
   const xpGoal = 2000;
   const maxEnemies = 5;
   const weaponReady = canAttack(readyAt, now);
   const cooldownRemaining = getCooldownRemaining(readyAt, now);
+  const weaponCooldownProgress = weaponReady
+    ? 0
+    : Math.min(1, Math.max(0, (readyAt - now) / (weapon.cooldown * 1000)));
   const isWeaponPanelOpen = selectedSlot === "language";
 
   useEffect(() => {
@@ -49,25 +55,50 @@ export function GameShell({ children }: GameShellProps) {
   }, []);
 
   const handleAttack = () => {
-    if (!weaponReady) {
+    const attackTime = Date.now();
+
+    if (!canAttack(readyAt, attackTime)) {
       return;
     }
 
-    const result = attackEnemy(weapon, enemy, now);
-    setEnemy((current) => ({ ...current, health: result.enemyHealth }));
-    setReadyAt(result.newCooldownReadyAt);
-    setIsAttacking(true);
+    const attackResult = attackEnemy(weapon, enemy, attackTime);
+    const nextEnemy = damageEnemy(weapon, enemy);
 
-    if (result.isEnemyDefeated) {
+    setEnemy(nextEnemy);
+    setReadyAt(attackResult.newCooldownReadyAt);
+    setIsAttacking(true);
+    window.dispatchEvent(new Event("codebound:primary-weapon-fired"));
+
+    if (nextEnemy.health === 0) {
       window.setTimeout(() => {
         setEnemies((count) => Math.max(0, count - 1));
-        setXp((currentXp) => Math.min(xpGoal, currentXp + result.xpReward));
+        setXp((currentXp) =>
+          Math.min(xpGoal, currentXp + enemy.xpReward),
+        );
         setEnemy(spawnEnemy());
       }, 600);
     }
 
     window.setTimeout(() => setIsAttacking(false), 250);
   };
+
+  useEffect(() => {
+    function handlePrimaryWeaponAttack() {
+      handleAttack();
+    }
+
+    window.addEventListener(
+      "codebound:primary-weapon-attack",
+      handlePrimaryWeaponAttack,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:primary-weapon-attack",
+        handlePrimaryWeaponAttack,
+      );
+    };
+  }, [handleAttack]);
 
   const updateWeaponField = (
     field: "damage" | "cooldown" | "range",
@@ -80,27 +111,27 @@ export function GameShell({ children }: GameShellProps) {
     <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
       <section className="absolute inset-0 z-0 bg-[#071018]">{children}</section>
 
-      <section className="pointer-events-auto absolute left-1/2 top-24 z-20 -translate-x-1/2">
+      {isDevMode ? (
         <DevControls
+          position={devToolsPosition}
           enemies={enemies}
           health={health}
           setCodeFragments={setCodeFragments}
           setCred={setCred}
           setEnemies={setEnemies}
           setHealth={setHealth}
-          setWeaponPanelMode={setWeaponPanelMode}
+          setPosition={setDevToolsPosition}
           setXp={setXp}
-          weaponPanelMode={weaponPanelMode}
           xp={xp}
           xpGoal={xpGoal}
         />
-      </section>
+      ) : null}
 
       {isWeaponPanelOpen ? (
         <WeaponPanel
           cooldownRemaining={cooldownRemaining}
           isReady={weaponReady}
-          mode={weaponPanelMode}
+          mode={isDevMode ? "dev" : "player"}
           onAttack={handleAttack}
           onCooldownChange={(value) => updateWeaponField("cooldown", value)}
           onDamageChange={(value) => updateWeaponField("damage", value)}
@@ -124,16 +155,21 @@ export function GameShell({ children }: GameShellProps) {
         enemy={enemy}
         enemies={enemies}
         health={health}
+        isDevMode={isDevMode}
+        isSettingsOpen={isSettingsOpen}
         level={level}
         maxEnemies={maxEnemies}
         maxHealth={maxHealth}
+        onDevModeChange={setIsDevMode}
         onLanguageSlotClick={() =>
           setSelectedSlot((current) =>
             current === "language" ? null : "language",
           )
         }
+        onSettingsClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
         selectedSlot={selectedSlot}
         weapon={weapon}
+        weaponCooldownProgress={weaponCooldownProgress}
         xp={xp}
         xpGoal={xpGoal}
       />

@@ -7,8 +7,17 @@ export function AbilitySlot({
   label,
   locked = false,
   active = false,
+  cooldownProgress = 0,
   onClick,
 }: AbilitySlotProps) {
+  const clampedCooldownProgress = Math.min(1, Math.max(0, cooldownProgress));
+  const cooldownDegrees = clampedCooldownProgress * 360;
+  const cooldownOverlayColor = "rgba(224, 242, 254, 0.32)";
+  const cooldownMask =
+    clampedCooldownProgress >= 0.995
+      ? cooldownOverlayColor
+      : `conic-gradient(from -90deg, ${cooldownOverlayColor} 0deg ${cooldownDegrees}deg, transparent ${cooldownDegrees}deg 360deg)`;
+
   return (
     <button
       type="button"
@@ -32,6 +41,13 @@ export function AbilitySlot({
         ) : (
           <span className="text-cyan-300">{icon}</span>
         )}
+        {clampedCooldownProgress > 0 ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{ background: cooldownMask }}
+          />
+        ) : null}
       </div>
       <div className="mt-2 text-sm font-bold text-white">{label}</div>
     </button>

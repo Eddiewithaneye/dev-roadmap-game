@@ -84,13 +84,16 @@ export default class GameScene extends Phaser.Scene {
     this.runTimer = new RunTimerSystem();
     this.weaponSystem = new WeaponSystem(
       this,
-      javascriptLanguageWeapon,
       player,
       enemy,
     );
 
     this.input.keyboard?.on("keydown-SPACE", () => {
-      this.weaponSystem?.tryFire(this.time.now);
+      window.dispatchEvent(new Event("codebound:primary-weapon-attack"));
+    });
+
+    const handlePrimaryWeaponFired = () => {
+      this.weaponSystem?.fire();
       DamageNumberEffects.show(
         this,
         enemy.container.x,
@@ -98,6 +101,17 @@ export default class GameScene extends Phaser.Scene {
         javascriptLanguageWeapon.damage,
       );
       HitFeedbackEffects.flash(this, enemy.container);
+    };
+
+    window.addEventListener(
+      "codebound:primary-weapon-fired",
+      handlePrimaryWeaponFired,
+    );
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener(
+        "codebound:primary-weapon-fired",
+        handlePrimaryWeaponFired,
+      );
     });
   }
 

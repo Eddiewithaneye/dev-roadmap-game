@@ -3,6 +3,7 @@ import type { Enemy } from "@/game/domain/types";
 import type { Weapon } from "@/types/weapon";
 
 export type WeaponPanelMode = "player" | "dev";
+export type DevToolsPosition = "top" | "left" | "right";
 
 export type ResourceStatProps = {
   icon: string;
@@ -22,6 +23,7 @@ export type AbilitySlotProps = {
   label: string;
   locked?: boolean;
   active?: boolean;
+  cooldownProgress?: number;
   onClick?: () => void;
 };
 
@@ -42,13 +44,13 @@ export type DevControlsProps = {
   xp: number;
   xpGoal: number;
   enemies: number;
-  weaponPanelMode: WeaponPanelMode;
+  position: DevToolsPosition;
   setHealth: Dispatch<SetStateAction<number>>;
   setCodeFragments: Dispatch<SetStateAction<number>>;
   setCred: Dispatch<SetStateAction<number>>;
   setXp: Dispatch<SetStateAction<number>>;
   setEnemies: Dispatch<SetStateAction<number>>;
-  setWeaponPanelMode: Dispatch<SetStateAction<WeaponPanelMode>>;
+  setPosition: Dispatch<SetStateAction<DevToolsPosition>>;
 };
 
 export type GameHudProps = {
@@ -64,7 +66,17 @@ export type GameHudProps = {
   enemy: Enemy;
   weapon: Weapon;
   selectedSlot: "language" | null;
+  weaponCooldownProgress: number;
+  isDevMode: boolean;
+  isSettingsOpen: boolean;
   onLanguageSlotClick: () => void;
+  onSettingsClick: () => void;
+  onDevModeChange: (isDevMode: boolean) => void;
+};
+
+export type SettingsMenuProps = {
+  isDevMode: boolean;
+  onDevModeChange: (isDevMode: boolean) => void;
 };
 
 export type WeaponPanelProps = {
