@@ -23,11 +23,13 @@ export function GameCanvas() {
         return;
       }
 
+      const { clientWidth, clientHeight } = containerRef.current;
+
       gameRef.current = new Phaser.Game({
         type: Phaser.AUTO,
         parent: containerRef.current,
-        width: 960,
-        height: 540,
+        width: clientWidth,
+        height: clientHeight,
         backgroundColor: "#101827",
         scene: [GameScene],
         scale: {
@@ -47,8 +49,8 @@ export function GameCanvas() {
   }, []);
 
   return (
-    <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-cyan-300/20 bg-slate-950 shadow-2xl shadow-cyan-950/30">
-      <div ref={containerRef} className="h-full min-h-[360px] w-full" />
+    <div className="h-full w-full overflow-hidden bg-slate-950">
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   );
 }

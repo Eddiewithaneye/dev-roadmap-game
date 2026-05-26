@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useState } from "react";
 
 type ResourceStatProps = {
@@ -29,6 +30,10 @@ type XpBarProps = {
 type BossBarProps = {
   enemies: number;
   maxEnemies: number;
+};
+
+type GameShellProps = {
+  children: ReactNode;
 };
 
 // This reusable component displays one top-bar resource like fragments or cred.
@@ -140,7 +145,7 @@ function BossBar({ enemies, maxEnemies }: BossBarProps) {
   );
 }
 
-export default function GameShell() {
+export default function GameShell({ children }: GameShellProps) {
   // These state values are temporary game data until Phaser sends real updates.
   const [health, setHealth] = useState(100);
   const [codeFragments, setCodeFragments] = useState(1248);
@@ -154,10 +159,12 @@ export default function GameShell() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
-      {/* This is a temporary game scene background so the HUD is readable over a game-like space. */}
-      <section className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_center,#143b4a_0%,#071018_65%)]">
+      {/* Phaser owns the full-screen scene layer. */}
+      <section className="absolute inset-0 z-0 bg-[#071018]">{children}</section>
+
+      {/* These buttons simulate game events while Phaser is not sending HUD updates yet. */}
+      <section className="pointer-events-auto absolute left-1/2 top-24 z-20 -translate-x-1/2">
         <div className="flex gap-3">
-          {/* These buttons simulate game events while we do not have Phaser wired in yet. */}
           <button
             className="border border-cyan-300/40 bg-black/60 px-4 py-2"
             onClick={() => setHealth(Math.max(0, health - 10))}
