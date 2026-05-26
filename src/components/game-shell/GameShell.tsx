@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { DevControls } from "./DevControls";
+//import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { GameScenePlaceholder } from "./GameScenePlaceholder";
 
@@ -22,6 +22,7 @@ export function GameShell() {
     <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
       <GameScenePlaceholder />
 
+      {/*
       <div className="absolute inset-0 flex items-center justify-center">
         <DevControls
           enemies={enemies}
@@ -35,7 +36,8 @@ export function GameShell() {
           xpGoal={xpGoal}
         />
       </div>
-
+      */}
+            
       <GameHud
         codeFragments={codeFragments}
         cred={cred}
