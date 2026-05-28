@@ -25,6 +25,8 @@ export type AbilitySlotProps = {
   active?: boolean;
   cooldownProgress?: number;
   onClick?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onInfoClick?: () => void;
 };
 
 export type XpBarProps = {
@@ -64,12 +66,12 @@ export type GameHudProps = {
   xpGoal: number;
   maxEnemies: number;
   enemy: Enemy;
-  weapon: Weapon;
-  selectedSlot: "language" | null;
+  selectedSlot: "language" | "sql";
   weaponCooldownProgress: number;
   isDevMode: boolean;
   isSettingsOpen: boolean;
-  onLanguageSlotClick: () => void;
+  onWeaponInfoClick: (slot: "language" | "sql") => void;
+  onWeaponSelect: (slot: "language" | "sql") => void;
   onSettingsClick: () => void;
   onDevModeChange: (isDevMode: boolean) => void;
 };
@@ -84,6 +86,7 @@ export type WeaponPanelProps = {
   mode: WeaponPanelMode;
   isReady: boolean;
   cooldownRemaining: number;
+  onClose: () => void;
   onAttack: () => void;
   onDamageChange: (value: number) => void;
   onCooldownChange: (value: number) => void;

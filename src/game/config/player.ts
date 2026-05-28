@@ -9,6 +9,7 @@ export type PlayerPosition = {
 export const PLAYER_PLACEHOLDER_TUNING = {
   xPercent: 30,
   groundYPercent: 62,
+  facing: 1,
   widthPx: 64,
   heightPx: 96,
   scale: 1,

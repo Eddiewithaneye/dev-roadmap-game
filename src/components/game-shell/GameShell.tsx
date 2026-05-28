@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import {
-  attackEnemy,
   canAttack,
   damageEnemy,
   getCooldownRemaining,
+  getNextReadyTime,
   spawnEnemy,
 } from "@/game/domain/combat";
-import { javascriptLanguageWeapon } from "@/game/config/weapons";
+import {
+  javascriptLanguageWeapon,
+  sqlBowWeapon,
+} from "@/game/config/weapons";
+import { clampHealth } from "@/game/domain/health";
 import type { Weapon } from "@/types/weapon";
 
 import { DevControls } from "./DevControls";
@@ -21,9 +25,11 @@ type GameShellProps = {
   children: ReactNode;
 };
 
+const INITIAL_HEALTH = 100;
+
 export function GameShell({ children }: GameShellProps) {
   // These state values are temporary game data until Phaser sends real updates.
-  const [health, setHealth] = useState(100);
+  const [health, setHealth] = useState(INITIAL_HEALTH);
   const [codeFragments, setCodeFragments] = useState(1248);
   const [cred, setCred] = useState(3560);
   const [xp, setXp] = useState(1250);
@@ -33,7 +39,10 @@ export function GameShell({ children }: GameShellProps) {
   const [readyAt, setReadyAt] = useState(0);
   const [isAttacking, setIsAttacking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [selectedSlot, setSelectedSlot] = useState<"language" | null>(null);
+  const [activeWeaponSlot, setActiveWeaponSlot] = useState<"language" | "sql">(
+    "language",
+  );
+  const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
   const [isDevMode, setIsDevMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
@@ -43,47 +52,94 @@ export function GameShell({ children }: GameShellProps) {
   const xpGoal = 2000;
   const maxEnemies = 5;
   const weaponReady = canAttack(readyAt, now);
+  const isPlayerDefeated = health <= 0;
   const cooldownRemaining = getCooldownRemaining(readyAt, now);
   const weaponCooldownProgress = weaponReady
     ? 0
     : Math.min(1, Math.max(0, (readyAt - now) / (weapon.cooldown * 1000)));
-  const isWeaponPanelOpen = selectedSlot === "language";
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(interval);
   }, []);
 
-  const handleAttack = () => {
+  const applyEnemyDamage = useCallback(
+    (damage: number) => {
+      setEnemy((currentEnemy) => {
+        const nextEnemy = damageEnemy(
+          { ...weapon, damage },
+          currentEnemy,
+        );
+
+        if (nextEnemy.health === 0) {
+          window.setTimeout(() => {
+            setEnemies((count) => Math.max(0, count - 1));
+            setXp((currentXp) =>
+              Math.min(xpGoal, currentXp + currentEnemy.xpReward),
+            );
+            setEnemy(spawnEnemy());
+          }, 600);
+        }
+
+        return nextEnemy;
+      });
+    },
+    [weapon, xpGoal],
+  );
+
+  const handleAttack = useCallback(() => {
+    if (isPlayerDefeated) {
+      return;
+    }
+
     const attackTime = Date.now();
 
     if (!canAttack(readyAt, attackTime)) {
       return;
     }
 
-    const attackResult = attackEnemy(weapon, enemy, attackTime);
-    const nextEnemy = damageEnemy(weapon, enemy);
-
-    setEnemy(nextEnemy);
-    setReadyAt(attackResult.newCooldownReadyAt);
+    setReadyAt(getNextReadyTime(weapon, attackTime));
     setIsAttacking(true);
-    window.dispatchEvent(new Event("codebound:primary-weapon-fired"));
+    window.dispatchEvent(
+      new CustomEvent("codebound:primary-weapon-fired", {
+        detail: {
+          damage: weapon.damage,
+          effect: weapon.effect,
+          range: weapon.range,
+        },
+      }),
+    );
 
-    if (nextEnemy.health === 0) {
-      window.setTimeout(() => {
-        setEnemies((count) => Math.max(0, count - 1));
-        setXp((currentXp) =>
-          Math.min(xpGoal, currentXp + enemy.xpReward),
-        );
-        setEnemy(spawnEnemy());
-      }, 600);
+    if (weapon.effect === "chain-spark") {
+      applyEnemyDamage(weapon.damage);
     }
 
     window.setTimeout(() => setIsAttacking(false), 250);
-  };
+  }, [applyEnemyDamage, isPlayerDefeated, readyAt, weapon]);
+
+  const restartRun = useCallback(() => {
+    setHealth(INITIAL_HEALTH);
+    setCodeFragments(1248);
+    setCred(3560);
+    setXp(1250);
+    setEnemies(maxEnemies);
+    setEnemy(spawnEnemy());
+    setReadyAt(0);
+    setIsAttacking(false);
+    window.dispatchEvent(new Event("codebound:run-restarted"));
+  }, [maxEnemies]);
 
   useEffect(() => {
     function handlePrimaryWeaponAttack() {
+      handleAttack();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat) {
+        return;
+      }
+
+      event.preventDefault();
       handleAttack();
     }
 
@@ -91,20 +147,73 @@ export function GameShell({ children }: GameShellProps) {
       "codebound:primary-weapon-attack",
       handlePrimaryWeaponAttack,
     );
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener(
         "codebound:primary-weapon-attack",
         handlePrimaryWeaponAttack,
       );
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleAttack]);
+
+  useEffect(() => {
+    function handleEnemyProjectileHit(event: Event) {
+      const { damage } = (event as CustomEvent<{ damage: number }>).detail;
+      setHealth((currentHealth) =>
+        clampHealth(currentHealth - damage, maxHealth),
+      );
+    }
+
+    window.addEventListener(
+      "codebound:enemy-projectile-hit",
+      handleEnemyProjectileHit,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:enemy-projectile-hit",
+        handleEnemyProjectileHit,
+      );
+    };
+  }, [maxHealth]);
+
+  useEffect(() => {
+    function handlePlayerProjectileHit(event: Event) {
+      const { damage } = (event as CustomEvent<{ damage: number }>).detail;
+      applyEnemyDamage(damage);
+    }
+
+    window.addEventListener(
+      "codebound:player-projectile-hit",
+      handlePlayerProjectileHit,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:player-projectile-hit",
+        handlePlayerProjectileHit,
+      );
+    };
+  }, [applyEnemyDamage]);
+
+  useEffect(() => {
+    if (isPlayerDefeated) {
+      window.dispatchEvent(new Event("codebound:run-paused"));
+    }
+  }, [isPlayerDefeated]);
 
   const updateWeaponField = (
     field: "damage" | "cooldown" | "range",
     value: number,
   ) => {
     setWeapon((current) => ({ ...current, [field]: value }));
+  };
+
+  const selectWeapon = (slot: "language" | "sql") => {
+    setActiveWeaponSlot(slot);
+    setWeapon(slot === "sql" ? sqlBowWeapon : javascriptLanguageWeapon);
   };
 
   return (
@@ -132,6 +241,7 @@ export function GameShell({ children }: GameShellProps) {
           cooldownRemaining={cooldownRemaining}
           isReady={weaponReady}
           mode={isDevMode ? "dev" : "player"}
+          onClose={() => setIsWeaponPanelOpen(false)}
           onAttack={handleAttack}
           onCooldownChange={(value) => updateWeaponField("cooldown", value)}
           onDamageChange={(value) => updateWeaponField("damage", value)}
@@ -149,6 +259,26 @@ export function GameShell({ children }: GameShellProps) {
         </div>
       ) : null}
 
+      {isPlayerDefeated ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
+          <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
+            <div className="text-sm font-bold uppercase tracking-wide text-red-200">
+              Run Failed
+            </div>
+            <div className="mt-2 text-3xl font-bold text-white">
+              Player knocked out
+            </div>
+            <button
+              type="button"
+              className="mt-5 cursor-pointer border-2 border-cyan-300/70 bg-cyan-500/15 px-5 py-3 font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-400/25"
+              onClick={restartRun}
+            >
+              Restart Run
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       <GameHud
         codeFragments={codeFragments}
         cred={cred}
@@ -161,14 +291,15 @@ export function GameShell({ children }: GameShellProps) {
         maxEnemies={maxEnemies}
         maxHealth={maxHealth}
         onDevModeChange={setIsDevMode}
-        onLanguageSlotClick={() =>
-          setSelectedSlot((current) =>
-            current === "language" ? null : "language",
-          )
-        }
+        onWeaponInfoClick={(slot) => {
+          selectWeapon(slot);
+          setIsWeaponPanelOpen((isOpen) =>
+            activeWeaponSlot === slot ? !isOpen : true,
+          );
+        }}
+        onWeaponSelect={selectWeapon}
         onSettingsClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
-        selectedSlot={selectedSlot}
-        weapon={weapon}
+        selectedSlot={activeWeaponSlot}
         weaponCooldownProgress={weaponCooldownProgress}
         xp={xp}
         xpGoal={xpGoal}

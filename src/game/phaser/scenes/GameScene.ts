@@ -12,15 +12,19 @@ import { DamageNumberEffects } from "@/game/phaser/effects/DamageNumberEffects";
 import { HitFeedbackEffects } from "@/game/phaser/effects/HitFeedbackEffects";
 import { CombatSystem } from "@/game/phaser/systems/CombatSystem";
 import { EnemyMovementSystem } from "@/game/phaser/systems/EnemyMovementSystem";
+import { EnemyProjectileSystem } from "@/game/phaser/systems/EnemyProjectileSystem";
 import { EnemySpawnerSystem } from "@/game/phaser/systems/EnemySpawnerSystem";
 import { PlayerMovementSystem } from "@/game/phaser/systems/PlayerMovementSystem";
 import { RewardSystem } from "@/game/phaser/systems/RewardSystem";
 import { RunTimerSystem } from "@/game/phaser/systems/RunTimerSystem";
 import { WeaponSystem } from "@/game/phaser/systems/WeaponSystem";
+import { getDepthScale } from "@/game/phaser/worldDepth";
+import type { WeaponEffect } from "@/types/weapon";
 
 export default class GameScene extends Phaser.Scene {
   private playerMovement?: PlayerMovementSystem;
   private enemyMovement?: EnemyMovementSystem;
+  private enemyProjectiles?: EnemyProjectileSystem;
   private enemySpawner?: EnemySpawnerSystem;
   private combat?: CombatSystem;
   private runTimer?: RunTimerSystem;
@@ -63,6 +67,8 @@ export default class GameScene extends Phaser.Scene {
 
     const player = new PlayerActor(this, playerX, playerY);
     const enemy = new EnemyActor(this, enemyDefinition, enemyX, enemyY);
+    player.setDepthScale(getDepthScale(playerY, walkableArea));
+    enemy.setDepthScale(getDepthScale(enemyY, walkableArea));
 
     this.add
       .text(
@@ -78,7 +84,13 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.playerMovement = new PlayerMovementSystem(this, player, walkableArea);
-    this.enemyMovement = new EnemyMovementSystem(enemy, player);
+    this.enemyMovement = new EnemyMovementSystem(enemy, walkableArea);
+    this.enemyProjectiles = new EnemyProjectileSystem(
+      this,
+      enemy,
+      player,
+      walkableArea,
+    );
     this.enemySpawner = new EnemySpawnerSystem();
     this.combat = new CombatSystem();
     this.runTimer = new RunTimerSystem();
@@ -88,17 +100,26 @@ export default class GameScene extends Phaser.Scene {
       enemy,
     );
 
-    this.input.keyboard?.on("keydown-SPACE", () => {
-      window.dispatchEvent(new Event("codebound:primary-weapon-attack"));
-    });
+    const handlePrimaryWeaponFired = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        damage?: number;
+        effect?: WeaponEffect;
+        range?: number;
+      }>).detail;
+      const damage = detail?.damage ?? javascriptLanguageWeapon.damage;
+      const effect = detail?.effect ?? javascriptLanguageWeapon.effect;
+      const range = detail?.range ?? javascriptLanguageWeapon.range;
 
-    const handlePrimaryWeaponFired = () => {
-      this.weaponSystem?.fire();
+      this.weaponSystem?.fire(effect, damage, range);
+      if (effect === "straight-shot") {
+        return;
+      }
+
       DamageNumberEffects.show(
         this,
         enemy.container.x,
         enemy.container.y - 82,
-        javascriptLanguageWeapon.damage,
+        damage,
       );
       HitFeedbackEffects.flash(this, enemy.container);
     };
@@ -107,17 +128,22 @@ export default class GameScene extends Phaser.Scene {
       "codebound:primary-weapon-fired",
       handlePrimaryWeaponFired,
     );
+    window.addEventListener("codebound:run-paused", this.pauseScene);
+    window.addEventListener("codebound:run-restarted", this.restartScene);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener(
         "codebound:primary-weapon-fired",
         handlePrimaryWeaponFired,
       );
+      window.removeEventListener("codebound:run-paused", this.pauseScene);
+      window.removeEventListener("codebound:run-restarted", this.restartScene);
     });
   }
 
   update(time: number, delta: number) {
     this.playerMovement?.update(delta);
     this.enemyMovement?.update(delta);
+    this.enemyProjectiles?.update(time, delta);
     this.combat?.update();
 
     if (this.enemySpawner?.update(time)) {
@@ -170,6 +196,15 @@ export default class GameScene extends Phaser.Scene {
       18,
     );
   }
+
+  private restartScene = () => {
+    this.scene.resume();
+    this.scene.restart();
+  };
+
+  private pauseScene = () => {
+    this.scene.pause();
+  };
 }
 
 function getPixelRect(

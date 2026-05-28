@@ -13,8 +13,25 @@ export const javascriptLanguageWeapon: Weapon = {
   cooldown: javascript.stats.cooldown,
   range: javascript.stats.range,
   icon: "JS",
+  effect: "chain-spark",
   visualEffect: "Fast electric bolts and chained code spark effects.",
   imageSrc: "/images/Event_Spark_Wand.png",
 };
 
-export const gameWeapons: Weapon[] = [javascriptLanguageWeapon];
+export const sqlBowWeapon: Weapon = {
+  category: "Language",
+  name: "SQL",
+  weaponName: "Querystring Bow",
+  description:
+    "A simple test weapon that fires one straight query arrow down the current lane.",
+  damage: 18,
+  cooldown: 1.4,
+  range: 18,
+  icon: "SQL",
+  effect: "straight-shot",
+  visualEffect:
+    "Straight-line arrow projectile with lane-based hit detection.",
+  imageSrc: "/images/sql-bow-placeholder.svg",
+};
+
+export const gameWeapons: Weapon[] = [javascriptLanguageWeapon, sqlBowWeapon];

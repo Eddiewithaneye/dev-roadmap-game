@@ -6,6 +6,7 @@ export function WeaponPanel({
   mode,
   isReady,
   cooldownRemaining,
+  onClose,
   onAttack,
   onDamageChange,
   onCooldownChange,
@@ -15,6 +16,15 @@ export function WeaponPanel({
 
   return (
     <div className="pointer-events-auto absolute bottom-32 left-1/2 z-20 w-[360px] -translate-x-1/2 rounded border border-cyan-300/30 bg-black/80 p-4 shadow-[0_0_60px_rgba(8,145,178,0.2)]">
+      <button
+        type="button"
+        className="absolute right-2 top-2 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-cyan-300/40 bg-black/70 text-sm font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-500/20"
+        onClick={onClose}
+        aria-label="Close weapon details"
+      >
+        X
+      </button>
+
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-20 w-20 items-center justify-center rounded bg-[#041c28] text-5xl">
           {weapon.icon}
@@ -86,7 +96,7 @@ export function WeaponPanel({
         onClick={onAttack}
         disabled={!isReady}
       >
-        {isReady ? "Cast Event Spark" : `Ready in ${cooldownRemaining}s`}
+        {isReady ? `Use ${weapon.weaponName}` : `Ready in ${cooldownRemaining}s`}
       </button>
     </div>
   );

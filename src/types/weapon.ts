@@ -5,6 +5,8 @@ export type WeaponCategory =
   | "Library"
   | "Platform";
 
+export type WeaponEffect = "chain-spark" | "straight-shot";
+
 export type Weapon = {
   category: WeaponCategory;
   name: string;
@@ -14,6 +16,7 @@ export type Weapon = {
   cooldown: number;
   range: number;
   icon: string;
+  effect: WeaponEffect;
   visualEffect?: string;
   imageSrc?: string;
 };

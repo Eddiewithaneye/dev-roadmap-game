@@ -17,12 +17,12 @@ export function GameHud({
   xpGoal,
   maxEnemies,
   enemy,
-  weapon,
   selectedSlot,
   weaponCooldownProgress,
   isDevMode,
   isSettingsOpen,
-  onLanguageSlotClick,
+  onWeaponInfoClick,
+  onWeaponSelect,
   onSettingsClick,
   onDevModeChange,
 }: GameHudProps) {
@@ -88,13 +88,28 @@ export function GameHud({
           <div className="flex gap-3">
             <AbilitySlot
               active={selectedSlot === "language"}
-              icon={weapon.icon}
-              imageSrc={weapon.imageSrc}
+              icon="JS"
+              imageSrc="/images/Event_Spark_Wand.png"
               label="Lv. 3"
-              cooldownProgress={weaponCooldownProgress}
-              onClick={onLanguageSlotClick}
+              cooldownProgress={
+                selectedSlot === "language" ? weaponCooldownProgress : 0
+              }
+              onClick={() => onWeaponSelect("language")}
+              onKeyDown={preventSpaceButtonClick}
+              onInfoClick={() => onWeaponInfoClick("language")}
             />
-            <AbilitySlot icon="⌁" label="Lv. 3" />
+            <AbilitySlot
+              active={selectedSlot === "sql"}
+              icon="SQL"
+              imageSrc="/images/sql-bow-placeholder.svg"
+              label="Lv. 3"
+              cooldownProgress={
+                selectedSlot === "sql" ? weaponCooldownProgress : 0
+              }
+              onClick={() => onWeaponSelect("sql")}
+              onKeyDown={preventSpaceButtonClick}
+              onInfoClick={() => onWeaponInfoClick("sql")}
+            />
             <AbilitySlot icon="" label="Lv. 6" locked />
             <AbilitySlot icon="" label="Lv. 10" locked />
           </div>
@@ -105,4 +120,10 @@ export function GameHud({
       </section>
     </div>
   );
+}
+
+function preventSpaceButtonClick(event: React.KeyboardEvent<HTMLButtonElement>) {
+  if (event.key === " ") {
+    event.preventDefault();
+  }
 }

@@ -4,6 +4,7 @@ import type { EnemyDefinition } from "@/game/config/enemies";
 
 export class EnemyActor {
   readonly container: Phaser.GameObjects.Container;
+  private depthScale = 1;
 
   constructor(scene: Phaser.Scene, enemy: EnemyDefinition, x: number, y: number) {
     const shadow = scene.add.ellipse(0, 8, 72, 14, 0x000000, 0.36);
@@ -23,5 +24,11 @@ export class EnemyActor {
     this.container = scene.add.container(x, y, [shadow, body, core, label]);
     this.container.setName(enemy.id);
     this.container.setSize(76, 106);
+    this.container.setDepth(y);
+  }
+
+  setDepthScale(scale: number) {
+    this.depthScale = scale;
+    this.container.setScale(this.depthScale);
   }
 }
