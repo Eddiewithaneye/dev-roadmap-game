@@ -7,6 +7,7 @@ import { XpBar } from "./XpBar";
 import type { GameHudProps } from "./types";
 
 export function GameHud({
+  runTimeLabel,
   health,
   codeFragments,
   cred,
@@ -44,7 +45,7 @@ export function GameHud({
         </div>
 
         <div className="absolute left-1/2 top-0 flex h-24 w-72 -translate-x-1/2 flex-col items-center justify-center bg-[#0a4759] [clip-path:polygon(0_0,100%_0,100%_70%,50%_100%,0_70%)]">
-          <div className="text-3xl font-bold tracking-wide">08:42</div>
+          <div className="text-3xl font-bold tracking-wide">{runTimeLabel}</div>
           <div className="text-sm font-bold text-cyan-200">Survive!</div>
         </div>
 

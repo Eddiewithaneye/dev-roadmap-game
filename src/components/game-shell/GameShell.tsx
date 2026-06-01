@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { RUN_TUNING } from "@/game/config/run";
 
 import {
   attackEnemy,
@@ -16,6 +17,7 @@ import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
 import type { DevToolsPosition } from "./types";
+import { runtime } from "@/app/api/auth/[...nextauth]/route";
 
 type GameShellProps = {
   children: ReactNode;
@@ -38,6 +40,9 @@ export function GameShell({ children }: GameShellProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
     useState<DevToolsPosition>("top");
+  const [runStartedAt] = useState(() => Date.now());
+
+  // Derived values
   const level = 12;
   const maxHealth = 312;
   const xpGoal = 2000;
@@ -48,6 +53,9 @@ export function GameShell({ children }: GameShellProps) {
     ? 0
     : Math.min(1, Math.max(0, (readyAt - now) / (weapon.cooldown * 1000)));
   const isWeaponPanelOpen = selectedSlot === "language";
+
+  const remainingRunSeconds = Math.max(0,RUN_TUNING.survivalGoalSeconds - Math.floor((now - runStartedAt) / 1000));
+  const runTimeLabel = formatRunTime(remainingRunSeconds)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 100);
@@ -150,6 +158,7 @@ export function GameShell({ children }: GameShellProps) {
       ) : null}
 
       <GameHud
+        runTimeLabel = {runTimeLabel}
         codeFragments={codeFragments}
         cred={cred}
         enemy={enemy}
@@ -177,4 +186,10 @@ export function GameShell({ children }: GameShellProps) {
   );
 }
 
+function formatRunTime(totalSeconds: number){
+  const minutes = Math.floor(totalSeconds/60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2,"0")}`;
+}
 export default GameShell;

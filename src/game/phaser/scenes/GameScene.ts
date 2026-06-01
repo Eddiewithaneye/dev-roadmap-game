@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 
 import { ARENA_LAYOUT, type ArenaPercentRect } from "@/game/config/arena";
-import { ENEMIES } from "@/game/config/enemies";
+import { ENEMIES, type EnemyDefinition } from "@/game/config/enemies";
 import { LANGUAGES } from "@/game/config/languages";
 import { PLAYER_PLACEHOLDER_TUNING } from "@/game/config/player";
 import { javascriptLanguageWeapon } from "@/game/config/weapons";
@@ -14,9 +14,11 @@ import { CombatSystem } from "@/game/phaser/systems/CombatSystem";
 import { EnemyMovementSystem } from "@/game/phaser/systems/EnemyMovementSystem";
 import { EnemySpawnerSystem } from "@/game/phaser/systems/EnemySpawnerSystem";
 import { PlayerMovementSystem } from "@/game/phaser/systems/PlayerMovementSystem";
-import { RewardSystem } from "@/game/phaser/systems/RewardSystem";
+//import { RewardSystem } from "@/game/phaser/systems/RewardSystem";
 import { RunTimerSystem } from "@/game/phaser/systems/RunTimerSystem";
 import { WeaponSystem } from "@/game/phaser/systems/WeaponSystem";
+import { getRandomValues } from "crypto";
+import { RUN_TUNING } from "@/game/config/run";
 
 export default class GameScene extends Phaser.Scene {
   private playerMovement?: PlayerMovementSystem;
@@ -25,6 +27,8 @@ export default class GameScene extends Phaser.Scene {
   private combat?: CombatSystem;
   private runTimer?: RunTimerSystem;
   private weaponSystem?: WeaponSystem;
+  private enemies: EnemyActor[] = [];
+  private isSpawningEnabled: boolean = true;
 
   constructor() {
     super("GameScene");
@@ -32,7 +36,7 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     const language = LANGUAGES[0];
-    const enemyDefinition = ENEMIES[0];
+    const enemyDefinition = ENEMIES[1];
     const { width, height } = this.scale;
     const centerX = width / 2;
     const walkableArea = getPixelRect(ARENA_LAYOUT.walkableArea, width, height);
@@ -60,10 +64,15 @@ export default class GameScene extends Phaser.Scene {
         fontSize: "18px",
       })
       .setOrigin(0.5);
+    
+    // Loading two enemies in using EnemyActor to see if I can create more than one
+    this.spawnEnemy(ENEMIES[0],enemyX,enemyY);
+    const wisp = this.spawnEnemy(ENEMIES[1], width - 80, enemyY - 80);
 
     const player = new PlayerActor(this, playerX, playerY);
-    const enemy = new EnemyActor(this, enemyDefinition, enemyX, enemyY);
-
+    
+    const enemy = wisp;
+  
     this.add
       .text(
         centerX,
@@ -78,7 +87,7 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.playerMovement = new PlayerMovementSystem(this, player, walkableArea);
-    this.enemyMovement = new EnemyMovementSystem(enemy, player);
+    this.enemyMovement = new EnemyMovementSystem(this.enemies, player);
     this.enemySpawner = new EnemySpawnerSystem();
     this.combat = new CombatSystem();
     this.runTimer = new RunTimerSystem();
@@ -120,15 +129,25 @@ export default class GameScene extends Phaser.Scene {
     this.enemyMovement?.update(delta);
     this.combat?.update();
 
-    if (this.enemySpawner?.update(time)) {
-      const rewardSystem = new RewardSystem(this);
-      rewardSystem.spawnDefaultReward(
-        this.scale.width * 0.82,
-        this.scale.height * 0.54,
+    if (this.isSpawningEnabled && this.enemySpawner?.update(time) && this.enemies.length < RUN_TUNING.maxActiveEnemies) {
+      this.spawnEnemy(
+        ENEMIES[Math.floor(Math.random() * ENEMIES.length)],
+        this.scale.width - 80,
+        this.scale.height * Phaser.Math.FloatBetween(.42,.66),
       );
+      this.enemySpawner.slowDown();
     }
 
-    this.runTimer?.getRemainingSeconds(time);
+    const remainingSeconds = this.runTimer?.getRemainingSeconds(time);
+    if (remainingSeconds === 0){
+      this.isSpawningEnabled = false;
+    }
+  }
+
+  private spawnEnemy(enemyDefinition: EnemyDefinition, x: number, y:number){
+    const enemy = new EnemyActor(this, enemyDefinition, x, y);
+    this.enemies.push(enemy);
+    return enemy;
   }
 
   private drawArena(walkableArea: ArenaRect) {
