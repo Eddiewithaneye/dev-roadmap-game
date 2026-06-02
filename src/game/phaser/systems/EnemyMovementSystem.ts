@@ -2,10 +2,10 @@ import type { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import type { ArenaRect } from "@/game/domain/types";
 
 export class EnemyMovementSystem {
-  private direction: -1 | 1 = -1;
+  private readonly directions = new Map<EnemyActor, -1 | 1>();
 
   constructor(
-    private readonly enemy: EnemyActor,
+    private readonly enemies: EnemyActor[],
     private readonly walkableArea: ArenaRect,
   ) {}
 
@@ -13,12 +13,18 @@ export class EnemyMovementSystem {
     const forwardLimit = this.walkableArea.x + this.walkableArea.width * 0.66;
     const backwardLimit = this.walkableArea.x + this.walkableArea.width * 0.78;
 
-    if (this.enemy.container.x <= forwardLimit) {
-      this.direction = 1;
-    } else if (this.enemy.container.x >= backwardLimit) {
-      this.direction = -1;
-    }
+    for (const enemy of this.enemies) {
+      const currentDirection = this.directions.get(enemy) ?? -1;
+      let nextDirection = currentDirection;
 
-    this.enemy.container.x += this.direction * Math.min(deltaMs, 50) * 0.014;
+      if (enemy.container.x <= forwardLimit) {
+        nextDirection = 1;
+      } else if (enemy.container.x >= backwardLimit) {
+        nextDirection = -1;
+      }
+
+      this.directions.set(enemy, nextDirection);
+      enemy.container.x += nextDirection * Math.min(deltaMs, 50) * 0.014;
+    }
   }
 }

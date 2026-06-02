@@ -56,6 +56,7 @@ export type DevControlsProps = {
 };
 
 export type GameHudProps = {
+  runTimeLabel: string;
   health: number;
   codeFragments: number;
   cred: number;

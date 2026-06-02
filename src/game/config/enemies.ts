@@ -20,4 +20,13 @@ export const ENEMIES = [
     damage: 12,
     xpReward: 125,
   },
+  {
+  id: "syntax-wisp",
+  name: "Syntax Wisp",
+  category: "Bug",
+  health: 45,
+  speed: 85,
+  damage: 6,
+  xpReward: 50,
+  }
 ] as const satisfies readonly EnemyDefinition[];
