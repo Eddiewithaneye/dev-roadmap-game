@@ -1,104 +1,291 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
+import { RUN_TUNING } from "@/game/config/run";
 import {
-  attackEnemy,
   canAttack,
   damageEnemy,
   getCooldownRemaining,
+  getNextReadyTime,
   spawnEnemy,
 } from "@/game/domain/combat";
-import { javascriptLanguageWeapon } from "@/game/config/weapons";
+import {
+  javascriptLanguageWeapon,
+  sqlBowWeapon,
+} from "@/game/config/weapons";
+import { clampHealth } from "@/game/domain/health";
 import type { Weapon } from "@/types/weapon";
 
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
-import type { DevToolsPosition } from "./types";
+import type { DevToolsPosition, WeaponSlot } from "./types";
 
 type GameShellProps = {
   children: ReactNode;
 };
 
+const INITIAL_HEALTH = 100;
+const WEAPON_SLOTS: WeaponSlot[] = ["language", "sql", "locked3", "locked4"];
+const weaponBySlot: Partial<Record<WeaponSlot, Weapon>> = {
+  language: javascriptLanguageWeapon,
+  sql: sqlBowWeapon,
+};
+
 export function GameShell({ children }: GameShellProps) {
   // These state values are temporary game data until Phaser sends real updates.
-  const [health, setHealth] = useState(100);
+  const [health, setHealth] = useState(INITIAL_HEALTH);
   const [codeFragments, setCodeFragments] = useState(1248);
   const [cred, setCred] = useState(3560);
   const [xp, setXp] = useState(1250);
   const [enemies, setEnemies] = useState(5);
   const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
   const [enemy, setEnemy] = useState(() => spawnEnemy());
-  const [readyAt, setReadyAt] = useState(0);
+  const [readyAtBySlot, setReadyAtBySlot] = useState<
+    Partial<Record<WeaponSlot, number>>
+  >({});
   const [isAttacking, setIsAttacking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [selectedSlot, setSelectedSlot] = useState<"language" | null>(null);
+  const [activeWeaponSlot, setActiveWeaponSlot] =
+    useState<WeaponSlot>("language");
+  const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
   const [isDevMode, setIsDevMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
     useState<DevToolsPosition>("top");
+  const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
+
+  // Derived values
   const level = 12;
   const maxHealth = 312;
   const xpGoal = 2000;
   const maxEnemies = 5;
-  const weaponReady = canAttack(readyAt, now);
-  const cooldownRemaining = getCooldownRemaining(readyAt, now);
-  const weaponCooldownProgress = weaponReady
-    ? 0
-    : Math.min(1, Math.max(0, (readyAt - now) / (weapon.cooldown * 1000)));
-  const isWeaponPanelOpen = selectedSlot === "language";
+  const activeReadyAt = readyAtBySlot[activeWeaponSlot] ?? 0;
+  const weaponReady = canAttack(activeReadyAt, now);
+  const isPlayerDefeated = health <= 0;
+  const cooldownRemaining = getCooldownRemaining(activeReadyAt, now);
+  const weaponCooldownProgressBySlot = getCooldownProgressBySlot(
+    readyAtBySlot,
+    now,
+  );
+
+  const remainingRunSeconds = Math.max(
+    0,
+    RUN_TUNING.survivalGoalSeconds -
+      Math.floor((now - runStartedAt) / 1000),
+  );
+  const runTimeLabel = formatRunTime(remainingRunSeconds);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(interval);
   }, []);
 
-  const handleAttack = () => {
-    const attackTime = Date.now();
+  const selectWeapon = useCallback((slot: WeaponSlot) => {
+    const nextWeapon = weaponBySlot[slot];
 
-    if (!canAttack(readyAt, attackTime)) {
+    if (!nextWeapon) {
+      setActiveWeaponSlot(slot);
       return;
     }
 
-    const attackResult = attackEnemy(weapon, enemy, attackTime);
-    const nextEnemy = damageEnemy(weapon, enemy);
+    setActiveWeaponSlot(slot);
+    setWeapon(nextWeapon);
+  }, []);
 
-    setEnemy(nextEnemy);
-    setReadyAt(attackResult.newCooldownReadyAt);
-    setIsAttacking(true);
-    window.dispatchEvent(new Event("codebound:primary-weapon-fired"));
+  const cycleWeapon = useCallback(
+    (direction: 1 | -1) => {
+      const currentIndex = WEAPON_SLOTS.indexOf(activeWeaponSlot);
+      const nextIndex =
+        (currentIndex + direction + WEAPON_SLOTS.length) % WEAPON_SLOTS.length;
+      selectWeapon(WEAPON_SLOTS[nextIndex]);
+    },
+    [activeWeaponSlot, selectWeapon],
+  );
 
-    if (nextEnemy.health === 0) {
-      window.setTimeout(() => {
-        setEnemies((count) => Math.max(0, count - 1));
-        setXp((currentXp) =>
-          Math.min(xpGoal, currentXp + enemy.xpReward),
+  const applyEnemyDamage = useCallback(
+    (damage: number) => {
+      setEnemy((currentEnemy) => {
+        const nextEnemy = damageEnemy(
+          { ...weapon, damage },
+          currentEnemy,
         );
-        setEnemy(spawnEnemy());
-      }, 600);
+
+        if (nextEnemy.health === 0) {
+          window.setTimeout(() => {
+            setEnemies((count) => Math.max(0, count - 1));
+            setXp((currentXp) =>
+              Math.min(xpGoal, currentXp + currentEnemy.xpReward),
+            );
+            setEnemy(spawnEnemy());
+          }, 600);
+        }
+
+        return nextEnemy;
+      });
+    },
+    [weapon, xpGoal],
+  );
+
+  const fireWeapon = useCallback((slot: WeaponSlot) => {
+    if (isPlayerDefeated) {
+      return;
+    }
+
+    const selectedWeapon = weaponBySlot[slot];
+
+    if (!selectedWeapon) {
+      return;
+    }
+
+    const attackTime = Date.now();
+    const slotReadyAt = readyAtBySlot[slot] ?? 0;
+
+    if (!canAttack(slotReadyAt, attackTime)) {
+      return;
+    }
+
+    setReadyAtBySlot((current) => ({
+      ...current,
+      [slot]: getNextReadyTime(selectedWeapon, attackTime),
+    }));
+    setIsAttacking(true);
+    window.dispatchEvent(
+      new CustomEvent("codebound:primary-weapon-fired", {
+        detail: {
+          damage: selectedWeapon.damage,
+          effect: selectedWeapon.effect,
+          range: selectedWeapon.range,
+        },
+      }),
+    );
+
+    if (selectedWeapon.effect === "chain-spark") {
+      applyEnemyDamage(selectedWeapon.damage);
     }
 
     window.setTimeout(() => setIsAttacking(false), 250);
-  };
+  }, [applyEnemyDamage, isPlayerDefeated, readyAtBySlot]);
+
+  const handleAttack = useCallback(() => {
+    fireWeapon(activeWeaponSlot);
+  }, [activeWeaponSlot, fireWeapon]);
+
+  const restartRun = useCallback(() => {
+    setHealth(INITIAL_HEALTH);
+    setCodeFragments(1248);
+    setCred(3560);
+    setXp(1250);
+    setEnemies(maxEnemies);
+    setEnemy(spawnEnemy());
+    setReadyAtBySlot({});
+    setIsAttacking(false);
+    setRunStartedAt(Date.now());
+    window.dispatchEvent(new Event("codebound:run-restarted"));
+  }, [maxEnemies]);
 
   useEffect(() => {
     function handlePrimaryWeaponAttack() {
       handleAttack();
     }
 
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.repeat) {
+        return;
+      }
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        handleAttack();
+        return;
+      }
+
+      if (event.code === "Tab") {
+        event.preventDefault();
+        cycleWeapon(1);
+        return;
+      }
+
+      const quickSlot = getQuickWeaponSlot(event.code);
+
+      if (quickSlot) {
+        event.preventDefault();
+        fireWeapon(quickSlot);
+      }
+    }
+
+    function handleWheel(event: WheelEvent) {
+      if (Math.abs(event.deltaY) < 1 && Math.abs(event.deltaX) < 1) {
+        return;
+      }
+
+      event.preventDefault();
+      cycleWeapon(event.deltaY + event.deltaX > 0 ? 1 : -1);
+    }
+
     window.addEventListener(
       "codebound:primary-weapon-attack",
       handlePrimaryWeaponAttack,
     );
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("wheel", handleWheel, { passive: false });
 
     return () => {
       window.removeEventListener(
         "codebound:primary-weapon-attack",
         handlePrimaryWeaponAttack,
       );
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("wheel", handleWheel);
     };
-  }, [handleAttack]);
+  }, [cycleWeapon, fireWeapon, handleAttack]);
+
+  useEffect(() => {
+    function handleEnemyProjectileHit(event: Event) {
+      const { damage } = (event as CustomEvent<{ damage: number }>).detail;
+      setHealth((currentHealth) =>
+        clampHealth(currentHealth - damage, maxHealth),
+      );
+    }
+
+    window.addEventListener(
+      "codebound:enemy-projectile-hit",
+      handleEnemyProjectileHit,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:enemy-projectile-hit",
+        handleEnemyProjectileHit,
+      );
+    };
+  }, [maxHealth]);
+
+  useEffect(() => {
+    function handlePlayerProjectileHit(event: Event) {
+      const { damage } = (event as CustomEvent<{ damage: number }>).detail;
+      applyEnemyDamage(damage);
+    }
+
+    window.addEventListener(
+      "codebound:player-projectile-hit",
+      handlePlayerProjectileHit,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:player-projectile-hit",
+        handlePlayerProjectileHit,
+      );
+    };
+  }, [applyEnemyDamage]);
+
+  useEffect(() => {
+    if (isPlayerDefeated) {
+      window.dispatchEvent(new Event("codebound:run-paused"));
+    }
+  }, [isPlayerDefeated]);
 
   const updateWeaponField = (
     field: "damage" | "cooldown" | "range",
@@ -132,6 +319,7 @@ export function GameShell({ children }: GameShellProps) {
           cooldownRemaining={cooldownRemaining}
           isReady={weaponReady}
           mode={isDevMode ? "dev" : "player"}
+          onClose={() => setIsWeaponPanelOpen(false)}
           onAttack={handleAttack}
           onCooldownChange={(value) => updateWeaponField("cooldown", value)}
           onDamageChange={(value) => updateWeaponField("damage", value)}
@@ -149,7 +337,28 @@ export function GameShell({ children }: GameShellProps) {
         </div>
       ) : null}
 
+      {isPlayerDefeated ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
+          <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
+            <div className="text-sm font-bold uppercase tracking-wide text-red-200">
+              Run Failed
+            </div>
+            <div className="mt-2 text-3xl font-bold text-white">
+              Player knocked out
+            </div>
+            <button
+              type="button"
+              className="mt-5 cursor-pointer border-2 border-cyan-300/70 bg-cyan-500/15 px-5 py-3 font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-400/25"
+              onClick={restartRun}
+            >
+              Restart Run
+            </button>
+          </section>
+        </div>
+      ) : null}
+
       <GameHud
+        runTimeLabel={runTimeLabel}
         codeFragments={codeFragments}
         cred={cred}
         enemy={enemy}
@@ -161,15 +370,16 @@ export function GameShell({ children }: GameShellProps) {
         maxEnemies={maxEnemies}
         maxHealth={maxHealth}
         onDevModeChange={setIsDevMode}
-        onLanguageSlotClick={() =>
-          setSelectedSlot((current) =>
-            current === "language" ? null : "language",
-          )
-        }
+        onWeaponInfoClick={(slot) => {
+          selectWeapon(slot);
+          setIsWeaponPanelOpen((isOpen) =>
+            activeWeaponSlot === slot ? !isOpen : true,
+          );
+        }}
+        onWeaponSelect={selectWeapon}
         onSettingsClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
-        selectedSlot={selectedSlot}
-        weapon={weapon}
-        weaponCooldownProgress={weaponCooldownProgress}
+        selectedSlot={activeWeaponSlot}
+        weaponCooldownProgressBySlot={weaponCooldownProgressBySlot}
         xp={xp}
         xpGoal={xpGoal}
       />
@@ -177,4 +387,52 @@ export function GameShell({ children }: GameShellProps) {
   );
 }
 
+function formatRunTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export default GameShell;
+
+function getQuickWeaponSlot(code: string): WeaponSlot | null {
+  if (code === "KeyQ") {
+    return "language";
+  }
+
+  if (code === "KeyE") {
+    return "sql";
+  }
+
+  if (code === "KeyR") {
+    return "locked3";
+  }
+
+  if (code === "KeyF") {
+    return "locked4";
+  }
+
+  return null;
+}
+
+function getCooldownProgressBySlot(
+  readyAtBySlot: Partial<Record<WeaponSlot, number>>,
+  now: number,
+) {
+  return Object.fromEntries(
+    WEAPON_SLOTS.map((slot) => {
+      const slotWeapon = weaponBySlot[slot];
+      const readyAt = readyAtBySlot[slot] ?? 0;
+
+      if (!slotWeapon || canAttack(readyAt, now)) {
+        return [slot, 0];
+      }
+
+      return [
+        slot,
+        Math.min(1, Math.max(0, (readyAt - now) / (slotWeapon.cooldown * 1000))),
+      ];
+    }),
+  ) as Partial<Record<WeaponSlot, number>>;
+}

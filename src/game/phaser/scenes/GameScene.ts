@@ -1,30 +1,35 @@
 import * as Phaser from "phaser";
 
 import { ARENA_LAYOUT, type ArenaPercentRect } from "@/game/config/arena";
-import { ENEMIES } from "@/game/config/enemies";
+import { ENEMIES, type EnemyDefinition } from "@/game/config/enemies";
 import { LANGUAGES } from "@/game/config/languages";
 import { PLAYER_PLACEHOLDER_TUNING } from "@/game/config/player";
 import { javascriptLanguageWeapon } from "@/game/config/weapons";
 import type { ArenaRect } from "@/game/domain/types";
 import { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import { PlayerActor } from "@/game/phaser/objects/PlayerActor";
-import { DamageNumberEffects } from "@/game/phaser/effects/DamageNumberEffects";
-import { HitFeedbackEffects } from "@/game/phaser/effects/HitFeedbackEffects";
 import { CombatSystem } from "@/game/phaser/systems/CombatSystem";
 import { EnemyMovementSystem } from "@/game/phaser/systems/EnemyMovementSystem";
+import { EnemyProjectileSystem } from "@/game/phaser/systems/EnemyProjectileSystem";
 import { EnemySpawnerSystem } from "@/game/phaser/systems/EnemySpawnerSystem";
 import { PlayerMovementSystem } from "@/game/phaser/systems/PlayerMovementSystem";
-import { RewardSystem } from "@/game/phaser/systems/RewardSystem";
+//import { RewardSystem } from "@/game/phaser/systems/RewardSystem";
 import { RunTimerSystem } from "@/game/phaser/systems/RunTimerSystem";
 import { WeaponSystem } from "@/game/phaser/systems/WeaponSystem";
+import { getDepthScale } from "@/game/phaser/worldDepth";
+import type { WeaponEffect } from "@/types/weapon";
+import { RUN_TUNING } from "@/game/config/run";
 
 export default class GameScene extends Phaser.Scene {
   private playerMovement?: PlayerMovementSystem;
   private enemyMovement?: EnemyMovementSystem;
+  private enemyProjectiles?: EnemyProjectileSystem;
   private enemySpawner?: EnemySpawnerSystem;
   private combat?: CombatSystem;
   private runTimer?: RunTimerSystem;
   private weaponSystem?: WeaponSystem;
+  private enemies: EnemyActor[] = [];
+  private isSpawningEnabled: boolean = true;
 
   constructor() {
     super("GameScene");
@@ -32,7 +37,7 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     const language = LANGUAGES[0];
-    const enemyDefinition = ENEMIES[0];
+    const enemyDefinition = ENEMIES[1];
     const { width, height } = this.scale;
     const centerX = width / 2;
     const walkableArea = getPixelRect(ARENA_LAYOUT.walkableArea, width, height);
@@ -61,8 +66,11 @@ export default class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    this.spawnEnemy(ENEMIES[0], enemyX, enemyY);
+    this.spawnEnemy(ENEMIES[1], width - 80, enemyY - 80);
+
     const player = new PlayerActor(this, playerX, playerY);
-    const enemy = new EnemyActor(this, enemyDefinition, enemyX, enemyY);
+    player.setDepthScale(getDepthScale(playerY, walkableArea));
 
     this.add
       .text(
@@ -78,57 +86,96 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.playerMovement = new PlayerMovementSystem(this, player, walkableArea);
-    this.enemyMovement = new EnemyMovementSystem(enemy, player);
+    this.enemyMovement = new EnemyMovementSystem(
+      this,
+      this.enemies,
+      player,
+      walkableArea,
+    );
+    this.enemyProjectiles = new EnemyProjectileSystem(
+      this,
+      this.enemies,
+      player,
+      walkableArea,
+    );
     this.enemySpawner = new EnemySpawnerSystem();
     this.combat = new CombatSystem();
     this.runTimer = new RunTimerSystem();
     this.weaponSystem = new WeaponSystem(
       this,
       player,
-      enemy,
+      this.enemies,
     );
 
-    this.input.keyboard?.on("keydown-SPACE", () => {
-      window.dispatchEvent(new Event("codebound:primary-weapon-attack"));
-    });
+    const handlePrimaryWeaponFired = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        damage?: number;
+        effect?: WeaponEffect;
+        range?: number;
+      }>).detail;
+      const damage = detail?.damage ?? javascriptLanguageWeapon.damage;
+      const effect = detail?.effect ?? javascriptLanguageWeapon.effect;
+      const range = detail?.range ?? javascriptLanguageWeapon.range;
 
-    const handlePrimaryWeaponFired = () => {
-      this.weaponSystem?.fire();
-      DamageNumberEffects.show(
-        this,
-        enemy.container.x,
-        enemy.container.y - 82,
-        javascriptLanguageWeapon.damage,
-      );
-      HitFeedbackEffects.flash(this, enemy.container);
+      this.weaponSystem?.fire(effect, damage, range);
     };
 
     window.addEventListener(
       "codebound:primary-weapon-fired",
       handlePrimaryWeaponFired,
     );
+    window.addEventListener("codebound:run-paused", this.pauseScene);
+    window.addEventListener("codebound:run-restarted", this.restartScene);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener(
         "codebound:primary-weapon-fired",
         handlePrimaryWeaponFired,
       );
+      window.removeEventListener("codebound:run-paused", this.pauseScene);
+      window.removeEventListener("codebound:run-restarted", this.restartScene);
     });
   }
 
   update(time: number, delta: number) {
     this.playerMovement?.update(delta);
-    this.enemyMovement?.update(delta);
+    this.enemyMovement?.update(time, delta);
+    this.enemyProjectiles?.update(time, delta);
     this.combat?.update();
 
-    if (this.enemySpawner?.update(time)) {
-      const rewardSystem = new RewardSystem(this);
-      rewardSystem.spawnDefaultReward(
-        this.scale.width * 0.82,
-        this.scale.height * 0.54,
+    if (
+      this.isSpawningEnabled &&
+      this.enemySpawner?.update(time) &&
+      this.enemies.filter((enemy) => !enemy.isDefeated()).length <
+        RUN_TUNING.maxActiveEnemies
+    ) {
+      this.spawnEnemy(
+        ENEMIES[Math.floor(Math.random() * ENEMIES.length)],
+        this.scale.width - 80,
+        this.scale.height * Phaser.Math.FloatBetween(0.42, 0.66),
       );
+      this.enemySpawner.speedUp();
     }
 
-    this.runTimer?.getRemainingSeconds(time);
+    const remainingSeconds = this.runTimer?.getRemainingSeconds(time);
+    if (remainingSeconds === 0) {
+      this.isSpawningEnabled = false;
+    }
+  }
+
+  private spawnEnemy(enemyDefinition: EnemyDefinition, x: number, y: number) {
+    const enemy = new EnemyActor(this, enemyDefinition, x, y);
+    enemy.setDepthScale(
+      getDepthScale(
+        y,
+        getPixelRect(
+          ARENA_LAYOUT.walkableArea,
+          this.scale.width,
+          this.scale.height,
+        ),
+      ),
+    );
+    this.enemies.push(enemy);
+    return enemy;
   }
 
   private drawArena(walkableArea: ArenaRect) {
@@ -170,6 +217,15 @@ export default class GameScene extends Phaser.Scene {
       18,
     );
   }
+
+  private restartScene = () => {
+    this.scene.resume();
+    this.scene.restart();
+  };
+
+  private pauseScene = () => {
+    this.scene.pause();
+  };
 }
 
 function getPixelRect(
