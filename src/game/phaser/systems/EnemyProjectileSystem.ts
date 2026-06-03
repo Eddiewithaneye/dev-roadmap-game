@@ -36,7 +36,7 @@ export class EnemyProjectileSystem {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly enemy: EnemyActor,
+    private readonly enemies: EnemyActor[],
     private readonly player: PlayerActor,
     private readonly walkableArea: ArenaRect,
   ) {
@@ -46,18 +46,22 @@ export class EnemyProjectileSystem {
   }
 
   update(time: number, deltaMs: number) {
-    if (time >= this.nextFireAt) {
-      this.fire();
+    const throwingEnemies = this.enemies.filter(
+      (enemy) => enemy.definition.id === "data-colossus" && !enemy.isDefeated(),
+    );
+
+    if (throwingEnemies.length > 0 && time >= this.nextFireAt) {
+      this.fire(Phaser.Utils.Array.GetRandom(throwingEnemies));
       this.nextFireAt = time + FIRE_INTERVAL_MS + randomBetween(-240, 360);
     }
 
     this.updateProjectiles(deltaMs / 1000);
   }
 
-  private fire() {
-    const direction = this.player.container.x < this.enemy.container.x ? -1 : 1;
-    const startX = this.enemy.container.x + direction * 44;
-    const laneY = this.enemy.container.y;
+  private fire(enemy: EnemyActor) {
+    const direction = this.player.container.x < enemy.container.x ? -1 : 1;
+    const startX = enemy.container.x + direction * 44;
+    const laneY = enemy.container.y;
     const startAltitude = 44;
     const horizontalForce = randomBetween(280, 430);
     const spread = randomBetween(-42, 42);

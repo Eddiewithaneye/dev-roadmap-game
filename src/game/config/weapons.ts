@@ -9,7 +9,7 @@ export const javascriptLanguageWeapon: Weapon = {
   weaponName: javascript.manifestation,
   description:
     "A fast fantasy-tech rod that launches electric bolts and chain-style code arcs.",
-  damage: javascript.stats.damage,
+  damage: 50,
   cooldown: javascript.stats.cooldown,
   range: javascript.stats.range,
   icon: "JS",

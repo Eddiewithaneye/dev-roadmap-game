@@ -18,7 +18,7 @@ export function AbilitySlot({
   const cooldownMask =
     clampedCooldownProgress >= 0.995
       ? cooldownOverlayColor
-      : `conic-gradient(from -90deg, ${cooldownOverlayColor} 0deg ${cooldownDegrees}deg, transparent ${cooldownDegrees}deg 360deg)`;
+      : `conic-gradient(from 0deg, ${cooldownOverlayColor} 0deg ${cooldownDegrees}deg, transparent ${cooldownDegrees}deg 360deg)`;
 
   return (
     <div

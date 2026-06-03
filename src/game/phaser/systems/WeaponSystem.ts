@@ -15,7 +15,7 @@ export class WeaponSystem {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerActor,
-    private readonly enemy: EnemyActor,
+    private readonly enemies: EnemyActor[],
   ) {}
 
   fire(effect: WeaponEffect, damage: number, range: number) {
@@ -24,29 +24,36 @@ export class WeaponSystem {
       return;
     }
 
-    WeaponEffects.spark(this.scene, this.player.container, this.enemy.container);
+    this.fireChainSpark(damage);
+  }
+
+  private fireChainSpark(damage: number) {
+    const target = this.getClosestLiveEnemy();
+
+    if (!target) {
+      return;
+    }
+
+    WeaponEffects.spark(this.scene, this.player.container, target.container);
+    this.applyHit(target, damage);
   }
 
   private fireStraightShot(damage: number, range: number) {
     const direction = this.player.getFacing();
     const playerX = this.player.container.x;
-    const enemyBounds = this.enemy.container.getBounds();
     const rangePixels = Math.min(
       range * STRAIGHT_SHOT_RANGE_UNIT_PX,
       this.scene.scale.width * 0.92,
     );
-    const distanceToEnemy =
-      direction === 1
-        ? enemyBounds.left - playerX
-        : playerX - enemyBounds.right;
-    const isAhead =
-      direction === 1
-        ? enemyBounds.left >= playerX
-        : enemyBounds.right <= playerX;
-    const isInRange = distanceToEnemy <= rangePixels;
-    const laneOverlap =
-      Math.abs(this.enemy.container.y - this.player.container.y) <=
-      STRAIGHT_SHOT_WIDTH / 2;
+    const hits = this.enemies
+      .filter((enemy) =>
+        this.isEnemyInStraightShot(enemy, direction, playerX, rangePixels),
+      )
+      .map((enemy) => ({
+        enemy,
+        distance: getDistanceToEnemy(enemy, direction, playerX),
+      }))
+      .sort((a, b) => a.distance - b.distance);
 
     WeaponEffects.straightShot(
       this.scene,
@@ -55,27 +62,81 @@ export class WeaponSystem {
       rangePixels,
     );
 
-    if (!isAhead || !isInRange || !laneOverlap) {
+    hits.forEach(({ enemy, distance }) => {
+      const hitDelay = Math.max(
+        40,
+        (distance / STRAIGHT_SHOT_SPEED_PX_PER_SECOND) * 1000,
+      );
+
+      this.scene.time.delayedCall(hitDelay, () => {
+        this.applyHit(enemy, damage);
+      });
+    });
+  }
+
+  private isEnemyInStraightShot(
+    enemy: EnemyActor,
+    direction: -1 | 1,
+    playerX: number,
+    rangePixels: number,
+  ) {
+    if (enemy.isDefeated()) {
+      return false;
+    }
+
+    const distance = getDistanceToEnemy(enemy, direction, playerX);
+    const isAhead = distance >= 0;
+    const isInRange = distance <= rangePixels;
+    const laneOverlap =
+      Math.abs(enemy.container.y - this.player.container.y) <=
+      STRAIGHT_SHOT_WIDTH / 2;
+
+    return isAhead && isInRange && laneOverlap;
+  }
+
+  private getClosestLiveEnemy() {
+    return this.enemies
+      .filter((enemy) => !enemy.isDefeated())
+      .map((enemy) => ({
+        enemy,
+        distance: Phaser.Math.Distance.Between(
+          this.player.container.x,
+          this.player.container.y,
+          enemy.container.x,
+          enemy.container.y,
+        ),
+      }))
+      .sort((a, b) => a.distance - b.distance)[0]?.enemy;
+  }
+
+  private applyHit(enemy: EnemyActor, damage: number) {
+    if (!enemy.applyDamage(this.scene, damage)) {
       return;
     }
 
-    const hitDelay = Math.max(
-      80,
-      (distanceToEnemy / STRAIGHT_SHOT_SPEED_PX_PER_SECOND) * 1000,
+    DamageNumberEffects.show(
+      this.scene,
+      enemy.container.x,
+      enemy.container.y - 82,
+      damage,
     );
-    this.scene.time.delayedCall(hitDelay, () => {
-      DamageNumberEffects.show(
-        this.scene,
-        this.enemy.container.x,
-        this.enemy.container.y - 82,
-        damage,
-      );
-      HitFeedbackEffects.flash(this.scene, this.enemy.container);
-      window.dispatchEvent(
-        new CustomEvent("codebound:player-projectile-hit", {
-          detail: { damage },
-        }),
-      );
-    });
+    HitFeedbackEffects.flash(this.scene, enemy.container);
+    window.dispatchEvent(
+      new CustomEvent("codebound:player-projectile-hit", {
+        detail: { damage },
+      }),
+    );
   }
+}
+
+function getDistanceToEnemy(
+  enemy: EnemyActor,
+  direction: -1 | 1,
+  playerX: number,
+) {
+  const enemyBounds = enemy.container.getBounds();
+
+  return direction === 1
+    ? enemyBounds.left - playerX
+    : playerX - enemyBounds.right;
 }

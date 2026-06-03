@@ -28,33 +28,34 @@ export class WeaponEffects {
     const startX = from.x + direction * 34;
     const y = from.y - 56;
     const arrow = scene.add
-      .rectangle(startX, y, 34, 6, 0xf8fafc, 0.95)
-      .setDepth(from.y + 24);
-    const tip = scene.add
-      .triangle(
-        startX + direction * 22,
-        y,
-        direction === 1 ? 12 : -12,
-        -8,
-        direction === 1 ? 12 : -12,
-        8,
-        direction === 1 ? 28 : -28,
-        0,
-        0x38bdf8,
-        0.95,
-      )
-      .setDepth(from.y + 25);
+      .graphics({ x: startX, y })
+      .setDepth(from.y + 24)
+      .setScale(direction, 1);
+
+    arrow.fillStyle(0x67e8f9, 0.24);
+    arrow.fillRect(-42, -2, 18, 4);
+    arrow.fillStyle(0xe0f2fe, 0.98);
+    arrow.lineStyle(1, 0xffffff, 0.5);
+    arrow.beginPath();
+    arrow.moveTo(-30, -6);
+    arrow.lineTo(8, -6);
+    arrow.lineTo(8, -12);
+    arrow.lineTo(34, 0);
+    arrow.lineTo(8, 12);
+    arrow.lineTo(8, 6);
+    arrow.lineTo(-30, 6);
+    arrow.lineTo(-22, 0);
+    arrow.closePath();
+    arrow.fillPath();
+    arrow.strokePath();
 
     scene.tweens.add({
-      targets: [arrow, tip],
+      targets: arrow,
       x: `+=${direction * rangePixels}`,
       alpha: 0,
-      duration: 420,
-      ease: "Sine.easeOut",
-      onComplete: () => {
-        arrow.destroy();
-        tip.destroy();
-      },
+      duration: (rangePixels / 980) * 1000,
+      ease: "Linear",
+      onComplete: () => arrow.destroy(),
     });
   }
 }

@@ -4,6 +4,7 @@ import type { Weapon } from "@/types/weapon";
 
 export type WeaponPanelMode = "player" | "dev";
 export type DevToolsPosition = "top" | "left" | "right";
+export type WeaponSlot = "language" | "sql" | "locked3" | "locked4";
 
 export type ResourceStatProps = {
   icon: string;
@@ -67,12 +68,12 @@ export type GameHudProps = {
   xpGoal: number;
   maxEnemies: number;
   enemy: Enemy;
-  selectedSlot: "language" | "sql";
-  weaponCooldownProgress: number;
+  selectedSlot: WeaponSlot;
+  weaponCooldownProgressBySlot: Partial<Record<WeaponSlot, number>>;
   isDevMode: boolean;
   isSettingsOpen: boolean;
-  onWeaponInfoClick: (slot: "language" | "sql") => void;
-  onWeaponSelect: (slot: "language" | "sql") => void;
+  onWeaponInfoClick: (slot: WeaponSlot) => void;
+  onWeaponSelect: (slot: WeaponSlot) => void;
   onSettingsClick: () => void;
   onDevModeChange: (isDevMode: boolean) => void;
 };

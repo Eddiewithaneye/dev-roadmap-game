@@ -19,7 +19,7 @@ export function GameHud({
   maxEnemies,
   enemy,
   selectedSlot,
-  weaponCooldownProgress,
+  weaponCooldownProgressBySlot,
   isDevMode,
   isSettingsOpen,
   onWeaponInfoClick,
@@ -92,9 +92,7 @@ export function GameHud({
               icon="JS"
               imageSrc="/images/Event_Spark_Wand.png"
               label="Lv. 3"
-              cooldownProgress={
-                selectedSlot === "language" ? weaponCooldownProgress : 0
-              }
+              cooldownProgress={weaponCooldownProgressBySlot.language ?? 0}
               onClick={() => onWeaponSelect("language")}
               onKeyDown={preventSpaceButtonClick}
               onInfoClick={() => onWeaponInfoClick("language")}
@@ -104,15 +102,13 @@ export function GameHud({
               icon="SQL"
               imageSrc="/images/sql-bow-placeholder.svg"
               label="Lv. 3"
-              cooldownProgress={
-                selectedSlot === "sql" ? weaponCooldownProgress : 0
-              }
+              cooldownProgress={weaponCooldownProgressBySlot.sql ?? 0}
               onClick={() => onWeaponSelect("sql")}
               onKeyDown={preventSpaceButtonClick}
               onInfoClick={() => onWeaponInfoClick("sql")}
             />
-            <AbilitySlot icon="" label="Lv. 6" locked />
-            <AbilitySlot icon="" label="Lv. 10" locked />
+            <AbilitySlot active={selectedSlot === "locked3"} icon="" label="Lv. 6" locked />
+            <AbilitySlot active={selectedSlot === "locked4"} icon="" label="Lv. 10" locked />
           </div>
           <XpBar level={level} xp={xp} xpGoal={xpGoal} />
         </div>

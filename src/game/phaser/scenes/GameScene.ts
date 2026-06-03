@@ -8,8 +8,6 @@ import { javascriptLanguageWeapon } from "@/game/config/weapons";
 import type { ArenaRect } from "@/game/domain/types";
 import { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import { PlayerActor } from "@/game/phaser/objects/PlayerActor";
-import { DamageNumberEffects } from "@/game/phaser/effects/DamageNumberEffects";
-import { HitFeedbackEffects } from "@/game/phaser/effects/HitFeedbackEffects";
 import { CombatSystem } from "@/game/phaser/systems/CombatSystem";
 import { EnemyMovementSystem } from "@/game/phaser/systems/EnemyMovementSystem";
 import { EnemyProjectileSystem } from "@/game/phaser/systems/EnemyProjectileSystem";
@@ -67,14 +65,13 @@ export default class GameScene extends Phaser.Scene {
         fontSize: "18px",
       })
       .setOrigin(0.5);
-    
-    // Loading two enemies in using EnemyActor to see if I can create more than one
-    this.spawnEnemy(ENEMIES[0],enemyX,enemyY);
-    const wisp = this.spawnEnemy(ENEMIES[1], width - 80, enemyY - 80);
+
+    this.spawnEnemy(ENEMIES[0], enemyX, enemyY);
+    this.spawnEnemy(ENEMIES[1], width - 80, enemyY - 80);
 
     const player = new PlayerActor(this, playerX, playerY);
     player.setDepthScale(getDepthScale(playerY, walkableArea));
-    const enemy = wisp;
+
     this.add
       .text(
         centerX,
@@ -89,10 +86,15 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.playerMovement = new PlayerMovementSystem(this, player, walkableArea);
-    this.enemyMovement = new EnemyMovementSystem(this.enemies, walkableArea);
+    this.enemyMovement = new EnemyMovementSystem(
+      this,
+      this.enemies,
+      player,
+      walkableArea,
+    );
     this.enemyProjectiles = new EnemyProjectileSystem(
       this,
-      enemy,
+      this.enemies,
       player,
       walkableArea,
     );
@@ -102,7 +104,7 @@ export default class GameScene extends Phaser.Scene {
     this.weaponSystem = new WeaponSystem(
       this,
       player,
-      enemy,
+      this.enemies,
     );
 
     const handlePrimaryWeaponFired = (event: Event) => {
@@ -116,17 +118,6 @@ export default class GameScene extends Phaser.Scene {
       const range = detail?.range ?? javascriptLanguageWeapon.range;
 
       this.weaponSystem?.fire(effect, damage, range);
-      if (effect === "straight-shot") {
-        return;
-      }
-
-      DamageNumberEffects.show(
-        this,
-        enemy.container.x,
-        enemy.container.y - 82,
-        damage,
-      );
-      HitFeedbackEffects.flash(this, enemy.container);
     };
 
     window.addEventListener(
@@ -147,26 +138,31 @@ export default class GameScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     this.playerMovement?.update(delta);
-    this.enemyMovement?.update(delta);
+    this.enemyMovement?.update(time, delta);
     this.enemyProjectiles?.update(time, delta);
     this.combat?.update();
 
-    if (this.isSpawningEnabled && this.enemySpawner?.update(time) && this.enemies.length < RUN_TUNING.maxActiveEnemies) {
+    if (
+      this.isSpawningEnabled &&
+      this.enemySpawner?.update(time) &&
+      this.enemies.filter((enemy) => !enemy.isDefeated()).length <
+        RUN_TUNING.maxActiveEnemies
+    ) {
       this.spawnEnemy(
         ENEMIES[Math.floor(Math.random() * ENEMIES.length)],
         this.scale.width - 80,
-        this.scale.height * Phaser.Math.FloatBetween(.42,.66),
+        this.scale.height * Phaser.Math.FloatBetween(0.42, 0.66),
       );
-      this.enemySpawner.slowDown();
+      this.enemySpawner.speedUp();
     }
 
     const remainingSeconds = this.runTimer?.getRemainingSeconds(time);
-    if (remainingSeconds === 0){
+    if (remainingSeconds === 0) {
       this.isSpawningEnabled = false;
     }
   }
 
-  private spawnEnemy(enemyDefinition: EnemyDefinition, x: number, y:number){
+  private spawnEnemy(enemyDefinition: EnemyDefinition, x: number, y: number) {
     const enemy = new EnemyActor(this, enemyDefinition, x, y);
     enemy.setDepthScale(
       getDepthScale(
