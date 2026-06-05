@@ -118,6 +118,7 @@ export default class GameScene extends Phaser.Scene {
       const range = detail?.range ?? javascriptLanguageWeapon.range;
 
       this.weaponSystem?.fire(effect, damage, range);
+      console.log("player-projectile-hit", damage);
     };
 
     window.addEventListener(

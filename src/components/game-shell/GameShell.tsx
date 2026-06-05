@@ -21,6 +21,7 @@ import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
 import type { DevToolsPosition, WeaponSlot } from "./types";
+import { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 
 type GameShellProps = {
   children: ReactNode;
@@ -38,8 +39,8 @@ export function GameShell({ children }: GameShellProps) {
   const [health, setHealth] = useState(INITIAL_HEALTH);
   const [codeFragments, setCodeFragments] = useState(1248);
   const [cred, setCred] = useState(3560);
-  const [xp, setXp] = useState(1250);
-  const [enemies, setEnemies] = useState(5);
+  const [xp, setXp] = useState(0);
+  const [enemies, setEnemies] = useState(15);
   const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
   const [enemy, setEnemy] = useState(() => spawnEnemy());
   const [readyAtBySlot, setReadyAtBySlot] = useState<
@@ -50,16 +51,14 @@ export function GameShell({ children }: GameShellProps) {
   const [activeWeaponSlot, setActiveWeaponSlot] =
     useState<WeaponSlot>("language");
   const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(true);
+  const [isDevMode, setIsDevMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
     useState<DevToolsPosition>("top");
   const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
-
-  // Derived values
-  const level = 12;
+  const [level, setLevel] = useState(0);
   const maxHealth = 312;
-  const xpGoal = 2000;
+  const [xpGoal, setXpGoal] = useState(100);
   const maxEnemies = 5;
   const activeReadyAt = readyAtBySlot[activeWeaponSlot] ?? 0;
   const weaponReady = canAttack(activeReadyAt, now);
@@ -112,12 +111,8 @@ export function GameShell({ children }: GameShellProps) {
           currentEnemy,
         );
 
-        if (nextEnemy.health === 0) {
+        if (currentEnemy.health > 0 && nextEnemy.health === 0) {
           window.setTimeout(() => {
-            setEnemies((count) => Math.max(0, count - 1));
-            setXp((currentXp) =>
-              Math.min(xpGoal, currentXp + currentEnemy.xpReward),
-            );
             setEnemy(spawnEnemy());
           }, 600);
         }
@@ -161,16 +156,35 @@ export function GameShell({ children }: GameShellProps) {
       }),
     );
 
-    if (selectedWeapon.effect === "chain-spark") {
-      applyEnemyDamage(selectedWeapon.damage);
-    }
-
     window.setTimeout(() => setIsAttacking(false), 250);
   }, [applyEnemyDamage, isPlayerDefeated, readyAtBySlot]);
 
   const handleAttack = useCallback(() => {
     fireWeapon(activeWeaponSlot);
   }, [activeWeaponSlot, fireWeapon]);
+
+  const grantXp = useCallback((xpAmount: number) => {
+    // Is the run still going?
+    const activeRun = !isPlayerDefeated && remainingRunSeconds > 0;
+
+    // return if its not
+    if(!activeRun){
+      return;
+    }
+      setEnemies((count) => Math.max(0, count - 1));
+      setXp((currentXp) => {
+        const nextXp = currentXp + xpAmount;
+
+        if(nextXp >= xpGoal){
+          // Three things need to happen: increment level, reset xp, increment xpGoal
+          setLevel((currentLevel) => currentLevel + 1);
+          setXpGoal((currentXpGoal) => Math.round(currentXpGoal * 1.3));
+          return 0;
+        }
+        return nextXp;
+
+      });
+  },[isPlayerDefeated,remainingRunSeconds, xpGoal]); 
 
   const restartRun = useCallback(() => {
     setHealth(INITIAL_HEALTH);
@@ -184,6 +198,7 @@ export function GameShell({ children }: GameShellProps) {
     setRunStartedAt(Date.now());
     window.dispatchEvent(new Event("codebound:run-restarted"));
   }, [maxEnemies]);
+
 
   useEffect(() => {
     function handlePrimaryWeaponAttack() {
@@ -281,6 +296,18 @@ export function GameShell({ children }: GameShellProps) {
     };
   }, [applyEnemyDamage]);
 
+  useEffect(() => {
+    function handleRewards(event: Event){
+      const {xpReward} = (event as CustomEvent<{xpReward: number}>).detail;
+      grantXp(xpReward);
+
+    }
+    window.addEventListener("codebound:enemy-defeated", handleRewards);
+
+    return () => {
+      window.removeEventListener("codebound:enemy-defeated", handleRewards);
+    };
+  },[xpGoal,grantXp]);
   useEffect(() => {
     if (isPlayerDefeated) {
       window.dispatchEvent(new Event("codebound:run-paused"));
