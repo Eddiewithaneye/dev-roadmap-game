@@ -18,3 +18,18 @@ export type GameConcept = {
   title: string;
   summary: string;
 };
+
+export type LanguageDefinition = {
+  id: string;
+  name: string;
+  category: "language";
+  manifestation: string;
+  shortDescription: string;
+  attackPattern: string;
+  stats: {
+    damage: number;
+    cooldown: number;
+    range: number;
+  };
+  codexEntry?: string;
+};
