@@ -57,6 +57,19 @@ export class EnemyActor {
     }
 
     this.defeated = true;
+
+    // Let react know that an enemy was defeated so it can update the rewardXp
+    window.dispatchEvent(
+      new CustomEvent("codebound:enemy-defeated",{
+        detail: {
+          id: this.definition.id,
+          name: this.definition.name,
+          xpReward: this.definition.xpReward,
+
+        },
+      }),
+    );
+    
     scene.tweens.add({
       targets: this.container,
       alpha: 0,

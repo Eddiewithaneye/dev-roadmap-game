@@ -18,7 +18,7 @@ export const ENEMIES = [
     health: 40,
     speed: 52,
     damage: 12,
-    xpReward: 125,
+    xpReward: 12,
   },
   {
     id: "null-wraith",
@@ -187,6 +187,6 @@ export const ENEMIES = [
     health: 30,
     speed: 85,
     damage: 6,
-    xpReward: 50,
+    xpReward: 10,
   },
 ] as const satisfies readonly EnemyDefinition[];
