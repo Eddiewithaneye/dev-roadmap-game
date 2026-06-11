@@ -18,7 +18,7 @@ export const ENEMIES = [
     health: 40,
     speed: 52,
     damage: 12,
-    xpReward: 10,
+    xpReward: 12,
   },
   {
     id: "syntax-wisp",
