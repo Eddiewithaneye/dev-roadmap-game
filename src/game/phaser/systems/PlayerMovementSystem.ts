@@ -3,6 +3,7 @@ import * as Phaser from "phaser";
 import { PLAYER_MOVEMENT_TUNING } from "@/game/config/player";
 import type { ArenaRect } from "@/game/domain/types";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
+import { getDepthScale } from "@/game/phaser/worldDepth";
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -66,6 +67,7 @@ export class PlayerMovementSystem {
     );
 
     this.player.setPosition(nextX, nextY);
+    this.player.setDepthScale(getDepthScale(nextY, this.walkableArea));
 
     if (x !== 0) {
       this.player.setFacing(x > 0 ? 1 : -1);

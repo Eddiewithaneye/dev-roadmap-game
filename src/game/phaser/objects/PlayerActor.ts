@@ -4,6 +4,8 @@ import { PLAYER_PLACEHOLDER_TUNING } from "@/game/config/player";
 
 export class PlayerActor {
   readonly container: Phaser.GameObjects.Container;
+  private facing: -1 | 1 = PLAYER_PLACEHOLDER_TUNING.facing;
+  private depthScale: number = PLAYER_PLACEHOLDER_TUNING.scale;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     const shadow = scene.add.ellipse(0, 6, 58, 12, 0x000000, 0.34);
@@ -35,12 +37,27 @@ export class PlayerActor {
 
   setPosition(x: number, y: number) {
     this.container.setPosition(x, y);
+    this.container.setDepth(y);
   }
 
   setFacing(facing: -1 | 1) {
+    this.facing = facing;
+    this.applyScale();
+  }
+
+  getFacing() {
+    return this.facing;
+  }
+
+  setDepthScale(scale: number) {
+    this.depthScale = scale;
+    this.applyScale();
+  }
+
+  private applyScale() {
     this.container.setScale(
-      PLAYER_PLACEHOLDER_TUNING.scale * facing,
-      PLAYER_PLACEHOLDER_TUNING.scale,
+      PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale * this.facing,
+      PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale,
     );
   }
 }

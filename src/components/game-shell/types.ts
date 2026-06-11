@@ -4,6 +4,7 @@ import type { Weapon } from "@/types/weapon";
 
 export type WeaponPanelMode = "player" | "dev";
 export type DevToolsPosition = "top" | "left" | "right";
+export type WeaponSlot = "language" | "sql" | "locked3" | "locked4";
 
 export type ResourceStatProps = {
   icon: string;
@@ -25,6 +26,8 @@ export type AbilitySlotProps = {
   active?: boolean;
   cooldownProgress?: number;
   onClick?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onInfoClick?: () => void;
 };
 
 export type XpBarProps = {
@@ -54,6 +57,7 @@ export type DevControlsProps = {
 };
 
 export type GameHudProps = {
+  runTimeLabel: string;
   health: number;
   codeFragments: number;
   cred: number;
@@ -64,12 +68,12 @@ export type GameHudProps = {
   xpGoal: number;
   maxEnemies: number;
   enemy: Enemy;
-  weapon: Weapon;
-  selectedSlot: "language" | null;
-  weaponCooldownProgress: number;
+  selectedSlot: WeaponSlot;
+  weaponCooldownProgressBySlot: Partial<Record<WeaponSlot, number>>;
   isDevMode: boolean;
   isSettingsOpen: boolean;
-  onLanguageSlotClick: () => void;
+  onWeaponInfoClick: (slot: WeaponSlot) => void;
+  onWeaponSelect: (slot: WeaponSlot) => void;
   onSettingsClick: () => void;
   onDevModeChange: (isDevMode: boolean) => void;
 };
@@ -84,6 +88,7 @@ export type WeaponPanelProps = {
   mode: WeaponPanelMode;
   isReady: boolean;
   cooldownRemaining: number;
+  onClose: () => void;
   onAttack: () => void;
   onDamageChange: (value: number) => void;
   onCooldownChange: (value: number) => void;
