@@ -7,7 +7,7 @@ export type ArenaRect = {
   height: number;
 };
 
-export type EnemyCategory = "Challenge" | "Bug" | "Project" | "Opportunity";
+export type EnemyCategory = "Challenge" | "Bug" | "Project" | "Opportunity" | "Boss";
 
 export type Enemy = {
   id: string;
