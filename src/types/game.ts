@@ -19,6 +19,7 @@ export type GameConcept = {
   summary: string;
 };
 
+
 export type LanguageDefinition = {
   id: string;
   name: string;
