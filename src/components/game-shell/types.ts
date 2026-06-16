@@ -43,30 +43,12 @@ export type EnemyPanelProps = {
 };
 
 export type DevControlsProps = {
-  health: number;
-  xp: number;
-  xpGoal: number;
-  enemies: number;
   position: DevToolsPosition;
-  setHealth: Dispatch<SetStateAction<number>>;
-  setCodeFragments: Dispatch<SetStateAction<number>>;
-  setCred: Dispatch<SetStateAction<number>>;
-  setXp: Dispatch<SetStateAction<number>>;
-  setEnemies: Dispatch<SetStateAction<number>>;
   setPosition: Dispatch<SetStateAction<DevToolsPosition>>;
 };
 
 export type GameHudProps = {
   runTimeLabel: string;
-  health: number;
-  codeFragments: number;
-  cred: number;
-  xp: number;
-  enemies: number;
-  level: number;
-  maxHealth: number;
-  xpGoal: number;
-  maxEnemies: number;
   enemy: Enemy;
   selectedSlot: WeaponSlot;
   weaponCooldownProgressBySlot: Partial<Record<WeaponSlot, number>>;

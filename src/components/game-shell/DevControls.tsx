@@ -1,5 +1,7 @@
+import { useGameStore } from "../game/stores/useGameStore";
 import type { DevControlsProps } from "./types";
 
+// constants
 const panelPositionClass = {
   top: "left-1/2 top-24 -translate-x-1/2",
   left: "left-6 top-28",
@@ -10,18 +12,15 @@ const actionButtonClass =
   "cursor-pointer border border-cyan-300/40 bg-black/60 px-4 py-2 transition hover:border-cyan-200 hover:bg-cyan-500/10";
 
 export function DevControls({
-  health,
-  xp,
-  xpGoal,
-  enemies,
   position,
-  setHealth,
-  setCodeFragments,
-  setCred,
-  setXp,
-  setEnemies,
   setPosition,
 }: DevControlsProps) {
+  // store custom hooks
+  const takeDamage = useGameStore((state) => state.takeDamage);
+  const grantCodeFragments = useGameStore((state) => state.grantCodeFragments);
+  const grantCred = useGameStore((state) => state.grantCred);
+  const grantXp = useGameStore((state) => state.grantXp);
+  const defeatEnemy = useGameStore((state) => state.defeatEnemy);
   return (
     <section
       className={`pointer-events-auto absolute z-20 max-w-[min(760px,calc(100vw-48px))] border border-cyan-300/30 bg-black/70 p-3 shadow-[0_0_32px_rgba(8,145,178,0.16)] ${panelPositionClass[position]}`}
@@ -55,31 +54,31 @@ export function DevControls({
       <div className="flex flex-wrap justify-center gap-3">
         <button
           className={actionButtonClass}
-          onClick={() => setHealth(Math.max(0, health - 10))}
+          onClick={() => takeDamage(10)}
         >
           Take Damage
         </button>
         <button
           className={actionButtonClass}
-          onClick={() => setCodeFragments((value) => value + 100)}
+          onClick={() => grantCodeFragments(100)}
         >
           Add Fragments
         </button>
         <button
           className={actionButtonClass}
-          onClick={() => setCred((value) => value + 50)}
+          onClick={() => grantCred(100)}
         >
           Add Cred
         </button>
         <button
           className={actionButtonClass}
-          onClick={() => setXp(Math.min(xpGoal, xp + 125))}
+          onClick={() => grantXp(100)}
         >
           Add XP
         </button>
         <button
           className={actionButtonClass}
-          onClick={() => setEnemies(Math.max(0, enemies - 1))}
+          onClick={() => defeatEnemy()}
         >
           Defeat Enemy
         </button>

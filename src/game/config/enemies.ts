@@ -181,6 +181,8 @@ export const ENEMIES = [
     speed: 45,
     damage: 40,
     xpReward: 750,
+  },
+  {
     id: "syntax-wisp",
     name: "Syntax Wisp",
     category: "Bug",
