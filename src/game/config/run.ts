@@ -1,9 +1,10 @@
 export const RUN_TUNING = {
   survivalGoalSeconds: 60,
   initialSpawnDelayMs: 500,
-  baseSpawnIntervalMs: 500,
-  minimumSpawnIntervalMs: 5500,
-  maximumSpawnIntervalMs: 14000,
-  spawnIntervalChangeMs: 750,
-  maxActiveEnemies: 15,
+  baseSpawnIntervalMs: 3500,
+  minimumSpawnIntervalMs: 2500,
+  maximumSpawnIntervalMs: 8000,
+  spawnIntervalChangeMs: 500,
+  maxActiveEnemies: 2,
+  enemyDefeatGoal: 5,
 } as const;

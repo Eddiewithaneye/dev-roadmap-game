@@ -14,14 +14,13 @@ import {
   javascriptLanguageWeapon,
   sqlBowWeapon,
 } from "@/game/config/weapons";
-import { clampHealth } from "@/game/domain/health";
 import type { Weapon } from "@/types/weapon";
 
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
 import type { DevToolsPosition, WeaponSlot } from "./types";
-import { EnemyActor } from "@/game/phaser/objects/EnemyActor";
+import { useGameStore } from "@/components/game/stores/useGameStore";
 
 type GameShellProps = {
   children: ReactNode;
@@ -35,12 +34,18 @@ const weaponBySlot: Partial<Record<WeaponSlot, Weapon>> = {
 };
 
 export function GameShell({ children }: GameShellProps) {
-  // These state values are temporary game data until Phaser sends real updates.
-  const [health, setHealth] = useState(INITIAL_HEALTH);
-  const [codeFragments, setCodeFragments] = useState(1248);
-  const [cred, setCred] = useState(3560);
-  const [xp, setXp] = useState(0);
-  const [enemies, setEnemies] = useState(15);
+  // PlayerSlice
+  const health = useGameStore((state) => state.health);
+  const xp = useGameStore((state) => state.xp);
+  const xpGoal = useGameStore((state) => state.xpGoal);
+  
+  // GameSlice
+  const grantXp = useGameStore((state) => state.grantXp);
+  const takeDamage = useGameStore((state) => state.takeDamage);
+  const defeatEnemy = useGameStore((state) => state.defeatEnemy);
+  const resetRun = useGameStore((state) => state.resetRun);
+  
+  // UI responsible state hooks
   const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
   const [enemy, setEnemy] = useState(() => spawnEnemy());
   const [readyAtBySlot, setReadyAtBySlot] = useState<
@@ -51,18 +56,19 @@ export function GameShell({ children }: GameShellProps) {
   const [activeWeaponSlot, setActiveWeaponSlot] =
     useState<WeaponSlot>("language");
   const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
+  const [isUpgradePanelOpen, setIsUpgradePanelOpen] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
     useState<DevToolsPosition>("top");
   const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
-  const [level, setLevel] = useState(0);
-  const maxHealth = 312;
-  const [xpGoal, setXpGoal] = useState(100);
-  const maxEnemies = 5;
+  const [isRunVictorious, setIsRunVictorious] = useState(false);
+  
+
+  // constants  
+  const isPlayerDefeated = health <= 0;
   const activeReadyAt = readyAtBySlot[activeWeaponSlot] ?? 0;
   const weaponReady = canAttack(activeReadyAt, now);
-  const isPlayerDefeated = health <= 0;
   const cooldownRemaining = getCooldownRemaining(activeReadyAt, now);
   const weaponCooldownProgressBySlot = getCooldownProgressBySlot(
     readyAtBySlot,
@@ -74,6 +80,9 @@ export function GameShell({ children }: GameShellProps) {
     RUN_TUNING.survivalGoalSeconds -
       Math.floor((now - runStartedAt) / 1000),
   );
+
+  const isRunOver = !isRunVictorious && (isPlayerDefeated || remainingRunSeconds <= 0);
+
   const runTimeLabel = formatRunTime(remainingRunSeconds);
 
   useEffect(() => {
@@ -163,41 +172,16 @@ export function GameShell({ children }: GameShellProps) {
     fireWeapon(activeWeaponSlot);
   }, [activeWeaponSlot, fireWeapon]);
 
-  const grantXp = useCallback((xpAmount: number) => {
-    // Is the run still going?
-    const activeRun = !isPlayerDefeated && remainingRunSeconds > 0;
-
-    // return if its not
-    if(!activeRun){
-      return;
-    }
-      setEnemies((count) => Math.max(0, count - 1));
-      setXp((currentXp) => {
-        const nextXp = currentXp + xpAmount;
-
-        if(nextXp >= xpGoal){
-          // Three things need to happen: increment level, reset xp, increment xpGoal
-          setLevel((currentLevel) => currentLevel + 1);
-          setXpGoal((currentXpGoal) => Math.round(currentXpGoal * 1.3));
-          return 0;
-        }
-        return nextXp;
-
-      });
-  },[isPlayerDefeated,remainingRunSeconds, xpGoal]); 
-
   const restartRun = useCallback(() => {
-    setHealth(INITIAL_HEALTH);
-    setCodeFragments(1248);
-    setCred(3560);
-    setXp(1250);
-    setEnemies(maxEnemies);
+    resetRun();
     setEnemy(spawnEnemy());
     setReadyAtBySlot({});
     setIsAttacking(false);
     setRunStartedAt(Date.now());
+    setIsRunVictorious(false);
+    setIsUpgradePanelOpen(false);
     window.dispatchEvent(new Event("codebound:run-restarted"));
-  }, [maxEnemies]);
+  }, [resetRun]);
 
 
   useEffect(() => {
@@ -259,9 +243,7 @@ export function GameShell({ children }: GameShellProps) {
   useEffect(() => {
     function handleEnemyProjectileHit(event: Event) {
       const { damage } = (event as CustomEvent<{ damage: number }>).detail;
-      setHealth((currentHealth) =>
-        clampHealth(currentHealth - damage, maxHealth),
-      );
+      takeDamage(damage);
     }
 
     window.addEventListener(
@@ -275,7 +257,7 @@ export function GameShell({ children }: GameShellProps) {
         handleEnemyProjectileHit,
       );
     };
-  }, [maxHealth]);
+  }, [takeDamage]);
 
   useEffect(() => {
     function handlePlayerProjectileHit(event: Event) {
@@ -299,20 +281,32 @@ export function GameShell({ children }: GameShellProps) {
   useEffect(() => {
     function handleRewards(event: Event){
       const {xpReward} = (event as CustomEvent<{xpReward: number}>).detail;
+
+      // Return if run is over
+      if(isPlayerDefeated || remainingRunSeconds <= 0){
+        return;
+      }
+
+      if(xp+xpReward >= xpGoal){
+        setIsUpgradePanelOpen(true);
+      }
+
+      defeatEnemy();
       grantXp(xpReward);
 
-    }
+      }
     window.addEventListener("codebound:enemy-defeated", handleRewards);
 
     return () => {
       window.removeEventListener("codebound:enemy-defeated", handleRewards);
     };
-  },[xpGoal,grantXp]);
+  },[defeatEnemy,grantXp,isPlayerDefeated,remainingRunSeconds,xp,xpGoal]);
+  
   useEffect(() => {
-    if (isPlayerDefeated) {
+    if (isPlayerDefeated || remainingRunSeconds <= 0) {
       window.dispatchEvent(new Event("codebound:run-paused"));
     }
-  }, [isPlayerDefeated]);
+  }, [isPlayerDefeated, remainingRunSeconds]);
 
   const updateWeaponField = (
     field: "damage" | "cooldown" | "range",
@@ -321,6 +315,21 @@ export function GameShell({ children }: GameShellProps) {
     setWeapon((current) => ({ ...current, [field]: value }));
   };
 
+  useEffect(() => {
+
+    function handleVictory () {
+      setIsRunVictorious(true);
+    }
+
+    window.addEventListener("codebound:run-victory", handleVictory);
+    
+    return () => {
+      window.removeEventListener("codebound:run-victory", handleVictory)
+    };
+
+  }, []);
+
+  // WHERE COMPONENT RENDERING BEGINS!
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
       <section className="absolute inset-0 z-0 bg-[#071018]">{children}</section>
@@ -328,16 +337,7 @@ export function GameShell({ children }: GameShellProps) {
       {isDevMode ? (
         <DevControls
           position={devToolsPosition}
-          enemies={enemies}
-          health={health}
-          setCodeFragments={setCodeFragments}
-          setCred={setCred}
-          setEnemies={setEnemies}
-          setHealth={setHealth}
           setPosition={setDevToolsPosition}
-          setXp={setXp}
-          xp={xp}
-          xpGoal={xpGoal}
         />
       ) : null}
 
@@ -364,14 +364,34 @@ export function GameShell({ children }: GameShellProps) {
         </div>
       ) : null}
 
-      {isPlayerDefeated ? (
+      {isRunOver ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
           <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
             <div className="text-sm font-bold uppercase tracking-wide text-red-200">
               Run Failed
             </div>
             <div className="mt-2 text-3xl font-bold text-white">
-              Player knocked out
+              You have been laid off!
+            </div>
+            <button
+              type="button"
+              className="mt-5 cursor-pointer border-2 border-cyan-300/70 bg-cyan-500/15 px-5 py-3 font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-400/25"
+              onClick={restartRun}
+            >
+              Restart Run
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {isRunVictorious ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
+          <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
+            <div className="text-sm font-bold uppercase tracking-wide text-red-200">
+              Successful Run!
+            </div>
+            <div className="mt-2 text-3xl font-bold text-white">
+              You have a job offer waiting!
             </div>
             <button
               type="button"
@@ -385,17 +405,10 @@ export function GameShell({ children }: GameShellProps) {
       ) : null}
 
       <GameHud
+        enemy = {enemy}
         runTimeLabel={runTimeLabel}
-        codeFragments={codeFragments}
-        cred={cred}
-        enemy={enemy}
-        enemies={enemies}
-        health={health}
         isDevMode={isDevMode}
         isSettingsOpen={isSettingsOpen}
-        level={level}
-        maxEnemies={maxEnemies}
-        maxHealth={maxHealth}
         onDevModeChange={setIsDevMode}
         onWeaponInfoClick={(slot) => {
           selectWeapon(slot);
@@ -407,8 +420,6 @@ export function GameShell({ children }: GameShellProps) {
         onSettingsClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
         selectedSlot={activeWeaponSlot}
         weaponCooldownProgressBySlot={weaponCooldownProgressBySlot}
-        xp={xp}
-        xpGoal={xpGoal}
       />
     </main>
   );

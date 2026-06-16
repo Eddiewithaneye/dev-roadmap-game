@@ -5,18 +5,10 @@ import { ResourceStat } from "./ResourceStat";
 import { SettingsMenu } from "./SettingsMenu";
 import { XpBar } from "./XpBar";
 import type { GameHudProps } from "./types";
+import { useGameStore } from "../game/stores/useGameStore";
 
 export function GameHud({
   runTimeLabel,
-  health,
-  codeFragments,
-  cred,
-  xp,
-  enemies,
-  level,
-  maxHealth,
-  xpGoal,
-  maxEnemies,
   enemy,
   selectedSlot,
   weaponCooldownProgressBySlot,
@@ -27,6 +19,15 @@ export function GameHud({
   onSettingsClick,
   onDevModeChange,
 }: GameHudProps) {
+  const xpGoal = useGameStore((state) => state.xpGoal);
+  const xp = useGameStore((state) => state.xp);
+  const maxHealth = useGameStore((state) => state.maxHealth);
+  const maxEnemies = useGameStore((state) => state.maxEnemies);
+  const level = useGameStore((state) => state.level);
+  const health = useGameStore((state) => state.health);
+  const enemies = useGameStore((state) => state.enemies);
+  const cred = useGameStore((state) => state.cred);
+  const codeFragments = useGameStore((state) => state.codeFragments);
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <section className="absolute left-0 right-0 top-0 flex h-20 items-start justify-between border-b-4 border-[#05242d] bg-[#071018]/90">
@@ -79,9 +80,9 @@ export function GameHud({
         <div className="flex gap-3">
           <PlayerCard health={health} level={level} maxHealth={maxHealth} />
           <PlayerCard
-            health={Math.max(0, health - 34)}
+            health={health}
             level={level}
-            maxHealth={278}
+            maxHealth={maxHealth}
           />
         </div>
 

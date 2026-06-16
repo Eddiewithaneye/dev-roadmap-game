@@ -30,12 +30,32 @@ export default class GameScene extends Phaser.Scene {
   private weaponSystem?: WeaponSystem;
   private enemies: EnemyActor[] = [];
   private isSpawningEnabled: boolean = true;
+  private defeatedEnemyCount = 0;
+  private handleEnemyDefeated = () => {
+    this.defeatedEnemyCount += 1;
+    
+    const isGoalReached = this.defeatedEnemyCount >= RUN_TUNING.enemyDefeatGoal;
+
+    if(isGoalReached){
+      this.isSpawningEnabled = false;
+    }
+
+if (this.getActiveEnemyCount() === 0 && isGoalReached) {
+  this.time.delayedCall(350, () => {
+    window.dispatchEvent(new Event("codebound:run-victory"));
+    this.scene.pause();
+  });
+}
+  };
 
   constructor() {
     super("GameScene");
   }
 
   create() {
+    this.enemies = [];
+    this.defeatedEnemyCount = 0;
+    this.isSpawningEnabled = true;
     const language = LANGUAGES[0];
     const enemyDefinition = ENEMIES[1];
     const { width, height } = this.scale;
@@ -46,6 +66,7 @@ export default class GameScene extends Phaser.Scene {
       (PLAYER_PLACEHOLDER_TUNING.groundYPercent / 100) * height;
     const enemyX = walkableArea.x + walkableArea.width * 0.72;
     const enemyY = walkableArea.y + walkableArea.height * 0.68;
+    
 
     this.cameras.main.setBackgroundColor("#101827");
     this.drawArena(walkableArea);
@@ -134,6 +155,14 @@ export default class GameScene extends Phaser.Scene {
       window.removeEventListener("codebound:run-paused", this.pauseScene);
       window.removeEventListener("codebound:run-restarted", this.restartScene);
     });
+
+    window.addEventListener("codebound:enemy-defeated", this.handleEnemyDefeated)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener(
+        "codebound:enemy-defeated",
+        this.handleEnemyDefeated,
+      );
+    });
   }
 
   update(time: number, delta: number) {
@@ -142,16 +171,17 @@ export default class GameScene extends Phaser.Scene {
     this.enemyProjectiles?.update(time, delta);
     this.combat?.update();
 
+    const activeEnemyCount = this.getActiveEnemyCount();
     if (
       this.isSpawningEnabled &&
       this.enemySpawner?.update(time) &&
-      this.enemies.filter((enemy) => !enemy.isDefeated()).length <
-        RUN_TUNING.maxActiveEnemies
+      activeEnemyCount < RUN_TUNING.maxActiveEnemies &&
+      this.defeatedEnemyCount + activeEnemyCount < RUN_TUNING.enemyDefeatGoal
     ) {
       this.spawnEnemy(
         ENEMIES[Math.floor(Math.random() * ENEMIES.length)],
         this.scale.width - 80,
-        this.scale.height * Phaser.Math.FloatBetween(0.42, 0.66),
+        this.scale.height * Phaser.Math.FloatBetween(0.4, 0.7),
       );
       this.enemySpawner.speedUp();
     }
@@ -160,6 +190,10 @@ export default class GameScene extends Phaser.Scene {
     if (remainingSeconds === 0) {
       this.isSpawningEnabled = false;
     }
+  }
+
+  private getActiveEnemyCount(): number {
+  return this.enemies.filter((enemy) => !enemy.isDefeated()).length;
   }
 
   private spawnEnemy(enemyDefinition: EnemyDefinition, x: number, y: number) {
