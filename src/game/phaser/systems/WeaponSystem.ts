@@ -1,7 +1,12 @@
 import * as Phaser from "phaser";
 
-import { DamageNumberEffects } from "@/game/phaser/effects/DamageNumberEffects";
-import { HitFeedbackEffects } from "@/game/phaser/effects/HitFeedbackEffects";
+import {
+  flashHitTarget,
+  getHitIntensity,
+  playHitShake,
+  pulseHitTarget,
+  spawnDamageNumber,
+} from "@/game/phaser/feedback/HitFeedback";
 import type { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
 import { WeaponEffects } from "@/game/phaser/effects/WeaponEffects";
@@ -114,13 +119,17 @@ export class WeaponSystem {
       return;
     }
 
-    DamageNumberEffects.show(
-      this.scene,
-      enemy.container.x,
-      enemy.container.y - 82,
-      damage,
-    );
-    HitFeedbackEffects.flash(this.scene, enemy.container);
+    const intensity = getHitIntensity(damage);
+
+    spawnDamageNumber(this.scene, enemy.container.x, enemy.container.y - 82, damage, {
+      intensity,
+    });
+    playHitShake(this.scene, intensity);
+
+    if (!enemy.isDefeated()) {
+      flashHitTarget(this.scene, enemy.container, intensity);
+      pulseHitTarget(this.scene, enemy.container, intensity);
+    }
     window.dispatchEvent(
       new CustomEvent("codebound:player-projectile-hit", {
         detail: { damage },
