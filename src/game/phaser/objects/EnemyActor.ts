@@ -45,6 +45,27 @@ export class EnemyActor {
     this.container.setScale(this.depthScale);
   }
 
+  getHurtbox() {
+    const scaleX = Math.abs(this.container.scaleX);
+    const scaleY = Math.abs(this.container.scaleY);
+
+    if (this.definition.id === "syntax-wisp") {
+      return new Phaser.Geom.Rectangle(
+        this.container.x - 29 * scaleX,
+        this.container.y - 78 * scaleY,
+        58 * scaleX,
+        72 * scaleY,
+      );
+    }
+
+    return new Phaser.Geom.Rectangle(
+      this.container.x - 34 * scaleX,
+      this.container.y - 82 * scaleY,
+      68 * scaleX,
+      82 * scaleY,
+    );
+  }
+
   applyDamage(scene: Phaser.Scene, damage: number) {
     if (this.defeated) {
       return false;

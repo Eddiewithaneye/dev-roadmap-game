@@ -17,11 +17,17 @@ const STRAIGHT_SHOT_RANGE_UNIT_PX = 56;
 const STRAIGHT_SHOT_SPEED_PX_PER_SECOND = 980;
 
 export class WeaponSystem {
+  private isDevMode = false;
+
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: PlayerActor,
     private readonly enemies: EnemyActor[],
   ) {}
+
+  setDevMode(isDevMode: boolean) {
+    this.isDevMode = isDevMode;
+  }
 
   fire(effect: WeaponEffect, damage: number, range: number) {
     if (effect === "straight-shot") {
@@ -39,24 +45,30 @@ export class WeaponSystem {
       return;
     }
 
-    WeaponEffects.spark(this.scene, this.player.getCastOrigin(), target.container);
+    WeaponEffects.spark(
+      this.scene,
+      this.player.getCastOrigin(),
+      target.container,
+    );
     this.applyHit(target, damage);
   }
 
   private fireStraightShot(damage: number, range: number) {
     const direction = this.player.getFacing();
-    const playerX = this.player.container.x;
     const rangePixels = Math.min(
       range * STRAIGHT_SHOT_RANGE_UNIT_PX,
       this.scene.scale.width * 0.92,
     );
+    const hitbox = getStraightShotHitbox(
+      this.player.container,
+      direction,
+      rangePixels,
+    );
     const hits = this.enemies
-      .filter((enemy) =>
-        this.isEnemyInStraightShot(enemy, direction, playerX, rangePixels),
-      )
+      .filter((enemy) => this.isEnemyInStraightShot(enemy, hitbox))
       .map((enemy) => ({
         enemy,
-        distance: getDistanceToEnemy(enemy, direction, playerX),
+        distance: getDistanceToEnemy(enemy, direction, hitbox),
       }))
       .sort((a, b) => a.distance - b.distance);
 
@@ -65,7 +77,19 @@ export class WeaponSystem {
       this.player.container,
       direction,
       rangePixels,
+      {
+        debugHitbox: hitbox,
+        showDebug: this.isDevMode,
+      },
     );
+
+    if (this.isDevMode) {
+      this.enemies
+        .filter((enemy) => !enemy.isDefeated())
+        .forEach((enemy) => {
+          WeaponEffects.debugRect(this.scene, enemy.getHurtbox());
+        });
+    }
 
     hits.forEach(({ enemy, distance }) => {
       const hitDelay = Math.max(
@@ -81,22 +105,16 @@ export class WeaponSystem {
 
   private isEnemyInStraightShot(
     enemy: EnemyActor,
-    direction: -1 | 1,
-    playerX: number,
-    rangePixels: number,
+    hitbox: Phaser.Geom.Rectangle,
   ) {
     if (enemy.isDefeated()) {
       return false;
     }
 
-    const distance = getDistanceToEnemy(enemy, direction, playerX);
-    const isAhead = distance >= 0;
-    const isInRange = distance <= rangePixels;
-    const laneOverlap =
-      Math.abs(enemy.container.y - this.player.container.y) <=
-      STRAIGHT_SHOT_WIDTH / 2;
-
-    return isAhead && isInRange && laneOverlap;
+    return Phaser.Geom.Intersects.RectangleToRectangle(
+      hitbox,
+      enemy.getHurtbox(),
+    );
   }
 
   private getClosestLiveEnemy() {
@@ -121,9 +139,15 @@ export class WeaponSystem {
 
     const intensity = getHitIntensity(damage);
 
-    spawnDamageNumber(this.scene, enemy.container.x, enemy.container.y - 82, damage, {
-      intensity,
-    });
+    spawnDamageNumber(
+      this.scene,
+      enemy.container.x,
+      enemy.container.y - 82,
+      damage,
+      {
+        intensity,
+      },
+    );
     playHitShake(this.scene, intensity);
 
     if (!enemy.isDefeated()) {
@@ -138,14 +162,30 @@ export class WeaponSystem {
   }
 }
 
+function getStraightShotHitbox(
+  player: Phaser.GameObjects.Container,
+  direction: -1 | 1,
+  rangePixels: number,
+) {
+  const startX = player.x + direction * 34;
+  const top = player.y - 56 - STRAIGHT_SHOT_WIDTH / 2;
+
+  return new Phaser.Geom.Rectangle(
+    direction === 1 ? startX : startX - rangePixels,
+    top,
+    rangePixels,
+    STRAIGHT_SHOT_WIDTH,
+  );
+}
+
 function getDistanceToEnemy(
   enemy: EnemyActor,
   direction: -1 | 1,
-  playerX: number,
+  hitbox: Phaser.Geom.Rectangle,
 ) {
-  const enemyBounds = enemy.container.getBounds();
+  const enemyHurtbox = enemy.getHurtbox();
 
   return direction === 1
-    ? enemyBounds.left - playerX
-    : playerX - enemyBounds.right;
+    ? enemyHurtbox.left - hitbox.left
+    : hitbox.right - enemyHurtbox.right;
 }

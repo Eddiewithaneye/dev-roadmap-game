@@ -29,8 +29,16 @@ export default class GameScene extends Phaser.Scene {
   private runTimer?: RunTimerSystem;
   private weaponSystem?: WeaponSystem;
   private enemies: EnemyActor[] = [];
+  private isDevMode = false;
   private isSpawningEnabled: boolean = true;
   private defeatedEnemyCount = 0;
+  private handleDevModeChanged = (event: Event) => {
+    const detail = (event as CustomEvent<{ isDevMode?: boolean }>).detail;
+
+    this.isDevMode = detail?.isDevMode ?? false;
+    this.weaponSystem?.setDevMode(this.isDevMode);
+  };
+
   private handleEnemyDefeated = () => {
     this.defeatedEnemyCount += 1;
     
@@ -56,6 +64,7 @@ if (this.getActiveEnemyCount() === 0 && isGoalReached) {
     this.enemies = [];
     this.defeatedEnemyCount = 0;
     this.isSpawningEnabled = true;
+    this.isDevMode = getCurrentDevMode();
     const language = LANGUAGES[0];
     const enemyDefinition = ENEMIES[1];
     const { width, height } = this.scale;
@@ -127,6 +136,7 @@ if (this.getActiveEnemyCount() === 0 && isGoalReached) {
       player,
       this.enemies,
     );
+    this.weaponSystem.setDevMode(this.isDevMode);
 
     const handlePrimaryWeaponFired = (event: Event) => {
       const detail = (event as CustomEvent<{
@@ -147,6 +157,10 @@ if (this.getActiveEnemyCount() === 0 && isGoalReached) {
     );
     window.addEventListener("codebound:run-paused", this.pauseScene);
     window.addEventListener("codebound:run-restarted", this.restartScene);
+    window.addEventListener(
+      "codebound:dev-mode-changed",
+      this.handleDevModeChanged,
+    );
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener(
         "codebound:primary-weapon-fired",
@@ -154,6 +168,10 @@ if (this.getActiveEnemyCount() === 0 && isGoalReached) {
       );
       window.removeEventListener("codebound:run-paused", this.pauseScene);
       window.removeEventListener("codebound:run-restarted", this.restartScene);
+      window.removeEventListener(
+        "codebound:dev-mode-changed",
+        this.handleDevModeChanged,
+      );
     });
 
     window.addEventListener("codebound:enemy-defeated", this.handleEnemyDefeated)
@@ -260,6 +278,14 @@ if (this.getActiveEnemyCount() === 0 && isGoalReached) {
   private pauseScene = () => {
     this.scene.pause();
   };
+}
+
+function getCurrentDevMode() {
+  const codeboundWindow = window as Window & {
+    __codeboundDevMode?: boolean;
+  };
+
+  return codeboundWindow.__codeboundDevMode ?? false;
 }
 
 function getPixelRect(

@@ -89,6 +89,19 @@ export function GameShell({ children }: GameShellProps) {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const codeboundWindow = window as Window & {
+      __codeboundDevMode?: boolean;
+    };
+
+    codeboundWindow.__codeboundDevMode = isDevMode;
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-mode-changed", {
+        detail: { isDevMode },
+      }),
+    );
+  }, [isDevMode]);
+
   const selectWeapon = useCallback((slot: WeaponSlot) => {
     const nextWeapon = weaponBySlot[slot];
 
