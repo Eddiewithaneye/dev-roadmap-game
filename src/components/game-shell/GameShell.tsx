@@ -51,7 +51,6 @@ export function GameShell({ children }: GameShellProps) {
   const [readyAtBySlot, setReadyAtBySlot] = useState<
     Partial<Record<WeaponSlot, number>>
   >({});
-  const [isAttacking, setIsAttacking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [activeWeaponSlot, setActiveWeaponSlot] =
     useState<WeaponSlot>("language");
@@ -154,7 +153,6 @@ export function GameShell({ children }: GameShellProps) {
       ...current,
       [slot]: getNextReadyTime(selectedWeapon, attackTime),
     }));
-    setIsAttacking(true);
     window.dispatchEvent(
       new CustomEvent("codebound:primary-weapon-fired", {
         detail: {
@@ -165,7 +163,6 @@ export function GameShell({ children }: GameShellProps) {
       }),
     );
 
-    window.setTimeout(() => setIsAttacking(false), 250);
   }, [applyEnemyDamage, isPlayerDefeated, readyAtBySlot]);
 
   const handleAttack = useCallback(() => {
@@ -176,7 +173,6 @@ export function GameShell({ children }: GameShellProps) {
     resetRun();
     setEnemy(spawnEnemy());
     setReadyAtBySlot({});
-    setIsAttacking(false);
     setRunStartedAt(Date.now());
     setIsRunVictorious(false);
     setIsUpgradePanelOpen(false);
@@ -355,14 +351,6 @@ export function GameShell({ children }: GameShellProps) {
         />
       ) : null}
 
-      {isAttacking ? (
-        <div className="pointer-events-none absolute left-1/2 top-1/3 z-20 -translate-x-1/2">
-          <div className="relative flex h-24 w-24 items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-cyan-300/30 blur-xl animate-ping" />
-            <div className="relative h-12 w-12 rounded-full bg-cyan-200/90 shadow-[0_0_30px_rgba(56,189,248,0.85)]" />
-          </div>
-        </div>
-      ) : null}
 
       {isRunOver ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
