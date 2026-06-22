@@ -39,7 +39,7 @@ export class WeaponSystem {
       return;
     }
 
-    WeaponEffects.spark(this.scene, this.player.container, target.container);
+    WeaponEffects.spark(this.scene, this.player.getCastOrigin(), target.container);
     this.applyHit(target, damage);
   }
 

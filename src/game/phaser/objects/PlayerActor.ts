@@ -49,6 +49,13 @@ export class PlayerActor {
     return this.facing;
   }
 
+  getCastOrigin() {
+    return {
+      x: this.container.x + 34 * this.container.scaleX,
+      y: this.container.y - 88 * this.container.scaleY,
+    };
+  }
+
   setDepthScale(scale: number) {
     this.depthScale = scale;
     this.applyScale();

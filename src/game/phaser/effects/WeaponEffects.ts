@@ -7,9 +7,21 @@ type PositionLike = {
 
 export class WeaponEffects {
   static spark(scene: Phaser.Scene, from: PositionLike, to: PositionLike) {
-    const bolt = scene.add
-      .line(0, 0, from.x, from.y - 72, to.x, to.y - 48, 0x67e8f9, 0.9)
-      .setOrigin(0);
+    const target = {
+      x: to.x,
+      y: to.y - 48,
+    };
+    const bolt = scene.add.graphics().setDepth(Math.max(from.y, target.y) + 24);
+
+    bolt.fillStyle(0x67e8f9, 0.24);
+    bolt.fillCircle(from.x, from.y, 16);
+    bolt.fillStyle(0xe0f2fe, 0.78);
+    bolt.fillCircle(from.x, from.y, 5);
+
+    bolt.lineStyle(5, 0x0e7490, 0.36);
+    bolt.strokeLineShape(new Phaser.Geom.Line(from.x, from.y, target.x, target.y));
+    bolt.lineStyle(2, 0x67e8f9, 0.95);
+    bolt.strokeLineShape(new Phaser.Geom.Line(from.x, from.y, target.x, target.y));
 
     scene.tweens.add({
       targets: bolt,
