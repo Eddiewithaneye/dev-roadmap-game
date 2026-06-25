@@ -61,6 +61,10 @@ export class PlayerActor {
     this.applyScale();
   }
 
+  getDepthScale() {
+    return this.depthScale;
+  }
+
   private applyScale() {
     this.container.setScale(
       PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale * this.facing,

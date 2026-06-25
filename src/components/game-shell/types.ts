@@ -16,12 +16,17 @@ export type PlayerCardProps = {
   health: number;
   level: number;
   maxHealth: number;
+  playerName?: string;
+  showExperience?: boolean;
+  xp?: number;
+  xpGoal?: number;
 };
 
 export type AbilitySlotProps = {
   icon: string;
   imageSrc?: string;
   label: string;
+  shortcutLabel?: string;
   locked?: boolean;
   active?: boolean;
   cooldownProgress?: number;
@@ -36,20 +41,28 @@ export type XpBarProps = {
   xpGoal: number;
 };
 
+export type PrimaryTarget = Enemy;
+
 export type EnemyPanelProps = {
-  enemy: Enemy;
-  enemies: number;
-  maxEnemies: number;
+  primaryTarget: PrimaryTarget;
 };
 
 export type DevControlsProps = {
+  isMinimized: boolean;
+  isRunTimerPaused: boolean;
+  onMinimizedChange: (isMinimized: boolean) => void;
+  onRunTimerPause: () => void;
+  onRunTimerPlay: () => void;
+  onRunTimerRestart: () => void;
+  onSkipToMiniboss: () => void;
+  onSpawnEnemy: () => void;
   position: DevToolsPosition;
   setPosition: Dispatch<SetStateAction<DevToolsPosition>>;
 };
 
 export type GameHudProps = {
   runTimeLabel: string;
-  enemy: Enemy;
+  primaryTarget: PrimaryTarget | null;
   selectedSlot: WeaponSlot;
   weaponCooldownProgressBySlot: Partial<Record<WeaponSlot, number>>;
   isDevMode: boolean;
@@ -68,10 +81,7 @@ export type SettingsMenuProps = {
 export type WeaponPanelProps = {
   weapon: Weapon;
   mode: WeaponPanelMode;
-  isReady: boolean;
-  cooldownRemaining: number;
   onClose: () => void;
-  onAttack: () => void;
   onDamageChange: (value: number) => void;
   onCooldownChange: (value: number) => void;
   onRangeChange: (value: number) => void;

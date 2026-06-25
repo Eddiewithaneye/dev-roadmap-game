@@ -9,7 +9,7 @@ import { useGameStore } from "../game/stores/useGameStore";
 
 export function GameHud({
   runTimeLabel,
-  enemy,
+  primaryTarget,
   selectedSlot,
   weaponCooldownProgressBySlot,
   isDevMode,
@@ -22,10 +22,8 @@ export function GameHud({
   const xpGoal = useGameStore((state) => state.xpGoal);
   const xp = useGameStore((state) => state.xp);
   const maxHealth = useGameStore((state) => state.maxHealth);
-  const maxEnemies = useGameStore((state) => state.maxEnemies);
   const level = useGameStore((state) => state.level);
   const health = useGameStore((state) => state.health);
-  const enemies = useGameStore((state) => state.enemies);
   const cred = useGameStore((state) => state.cred);
   const codeFragments = useGameStore((state) => state.codeFragments);
   return (
@@ -45,9 +43,13 @@ export function GameHud({
           </div>
         </div>
 
-        <div className="absolute left-1/2 top-0 flex h-24 w-72 -translate-x-1/2 flex-col items-center justify-center bg-[#0a4759] [clip-path:polygon(0_0,100%_0,100%_70%,50%_100%,0_70%)]">
-          <div className="text-3xl font-bold tracking-wide">{runTimeLabel}</div>
-          <div className="text-sm font-bold text-cyan-200">Survive!</div>
+        <div className="absolute left-1/2 top-0 flex h-24 w-72 -translate-x-1/2 flex-col items-center justify-start bg-[#0a4759] pt-3 [clip-path:polygon(0_0,100%_0,100%_70%,50%_100%,0_70%)]">
+          <div className="text-sm font-bold uppercase tracking-wide text-cyan-100">
+            Codebound
+          </div>
+          <div className="mt-1 text-2xl font-bold tracking-wide">
+            {runTimeLabel}
+          </div>
         </div>
 
         <div className="flex w-[38%] items-center justify-end px-6 py-3">
@@ -79,11 +81,6 @@ export function GameHud({
       <section className="absolute bottom-6 left-6 right-6 flex items-end justify-between gap-6">
         <div className="flex gap-3">
           <PlayerCard health={health} level={level} maxHealth={maxHealth} />
-          <PlayerCard
-            health={health}
-            level={level}
-            maxHealth={maxHealth}
-          />
         </div>
 
         <div className="flex flex-col items-center gap-3">
@@ -93,6 +90,7 @@ export function GameHud({
               icon="JS"
               imageSrc="/images/Event_Spark_Wand.png"
               label="Lv. 3"
+              shortcutLabel="Q"
               cooldownProgress={weaponCooldownProgressBySlot.language ?? 0}
               onClick={() => onWeaponSelect("language")}
               onKeyDown={preventSpaceButtonClick}
@@ -103,18 +101,31 @@ export function GameHud({
               icon="SQL"
               imageSrc="/images/sql-bow-placeholder.svg"
               label="Lv. 3"
+              shortcutLabel="E"
               cooldownProgress={weaponCooldownProgressBySlot.sql ?? 0}
               onClick={() => onWeaponSelect("sql")}
               onKeyDown={preventSpaceButtonClick}
               onInfoClick={() => onWeaponInfoClick("sql")}
             />
-            <AbilitySlot active={selectedSlot === "locked3"} icon="" label="Lv. 6" locked />
-            <AbilitySlot active={selectedSlot === "locked4"} icon="" label="Lv. 10" locked />
+            <AbilitySlot
+              active={selectedSlot === "locked3"}
+              icon=""
+              label="Lv. 6"
+              shortcutLabel="R"
+              locked
+            />
+            <AbilitySlot
+              active={selectedSlot === "locked4"}
+              icon=""
+              label="Lv. 10"
+              shortcutLabel="F"
+              locked
+            />
           </div>
           <XpBar level={level} xp={xp} xpGoal={xpGoal} />
         </div>
 
-        <EnemyPanel enemy={enemy} enemies={enemies} maxEnemies={maxEnemies} />
+        {primaryTarget ? <EnemyPanel primaryTarget={primaryTarget} /> : <div className="w-[520px]" />}
       </section>
     </div>
   );

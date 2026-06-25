@@ -1,9 +1,10 @@
 import * as Phaser from "phaser";
 
+import { useGameStore } from "@/components/game/stores/useGameStore";
 import { PLAYER_MOVEMENT_TUNING } from "@/game/config/player";
 import type { ArenaRect } from "@/game/domain/types";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
-import { getDepthScale } from "@/game/phaser/worldDepth";
+import { getDepthScale, getMovementSpeedScale } from "@/game/phaser/worldDepth";
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -18,6 +19,7 @@ type MovementKeys = {
 
 export class PlayerMovementSystem {
   private readonly keys?: MovementKeys;
+  private lastPublishedSpeed = -1;
 
   constructor(
     scene: Phaser.Scene,
@@ -50,11 +52,17 @@ export class PlayerMovementSystem {
     const length = Math.hypot(x, y);
 
     if (length === 0) {
+      this.publishMovementSpeed(0);
       return;
     }
 
-    const distance =
-      PLAYER_MOVEMENT_TUNING.speedPxPerSecond * Math.min(deltaMs, 50) * 0.001;
+    const speedScale = getMovementSpeedScale(
+      this.player.container.y,
+      this.walkableArea,
+    );
+    const currentMovementSpeed =
+      PLAYER_MOVEMENT_TUNING.speedPxPerSecond * speedScale;
+    const distance = currentMovementSpeed * Math.min(deltaMs, 50) * 0.001;
     const nextX = Phaser.Math.Clamp(
       this.player.container.x + (x / length) * distance,
       this.walkableArea.x,
@@ -66,11 +74,23 @@ export class PlayerMovementSystem {
       this.walkableArea.y + this.walkableArea.height,
     );
 
+    this.publishMovementSpeed(currentMovementSpeed);
     this.player.setPosition(nextX, nextY);
     this.player.setDepthScale(getDepthScale(nextY, this.walkableArea));
 
     if (x !== 0) {
       this.player.setFacing(x > 0 ? 1 : -1);
     }
+  }
+
+  private publishMovementSpeed(speed: number) {
+    const roundedSpeed = Math.round(speed);
+
+    if (roundedSpeed === this.lastPublishedSpeed) {
+      return;
+    }
+
+    this.lastPublishedSpeed = roundedSpeed;
+    useGameStore.getState().setCurrentMovementSpeed(roundedSpeed);
   }
 }

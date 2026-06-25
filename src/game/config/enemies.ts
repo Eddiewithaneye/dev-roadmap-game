@@ -30,6 +30,15 @@ export const ENEMIES = [
     xpReward: 25,
   },
   {
+    id: "null-wraith-miniboss",
+    name: "Null Wraith",
+    category: "Bug",
+    health: 175,
+    speed: 90,
+    damage: 24,
+    xpReward: 125,
+  },
+  {
     id: "syntax-gremlin",
     name: "Syntax Gremlin",
     category: "Bug",
@@ -183,8 +192,8 @@ export const ENEMIES = [
     xpReward: 750,
   },
   {
-    id: "syntax-wisp",
-    name: "Syntax Wisp",
+    id: "spacing-wisp",
+    name: "Spacing Wisp",
     category: "Bug",
     health: 30,
     speed: 85,

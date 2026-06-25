@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 
+import type { ScreenShakeIntensity } from "@/types/weapon";
+
 export type HitIntensity = "light" | "normal" | "heavy";
 
 type DamageNumberOptions = {
@@ -36,7 +38,10 @@ const damageNumberStyles = {
   },
 };
 
-const hitShakeStyles = {
+const hitShakeStyles: Record<Exclude<ScreenShakeIntensity, "none">, {
+  duration: number;
+  intensity: number;
+}> = {
   light: {
     duration: 45,
     intensity: 0.002,
@@ -97,8 +102,12 @@ export function getHitIntensity(damage: number): HitIntensity {
 
 export function playHitShake(
   scene: Phaser.Scene,
-  intensity: HitIntensity = "normal",
+  intensity: ScreenShakeIntensity = "normal",
 ) {
+  if (intensity === "none") {
+    return;
+  }
+
   const style = hitShakeStyles[intensity];
 
   scene.cameras.main.shake(style.duration, style.intensity);

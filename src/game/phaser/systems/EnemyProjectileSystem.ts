@@ -1,12 +1,14 @@
 import * as Phaser from "phaser";
 
 import type { ArenaRect } from "@/game/domain/types";
+import { playHitShake } from "@/game/phaser/feedback/HitFeedback";
+import type { ScreenShakeIntensity } from "@/types/weapon";
 import type { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
 import { getDepthScale, getWorldZ } from "@/game/phaser/worldDepth";
 
 type EnemyProjectile = {
-  body: Phaser.GameObjects.Arc;
+  body: Phaser.GameObjects.Text;
   shadow: Phaser.GameObjects.Ellipse;
   x: number;
   laneY: number;
@@ -26,6 +28,7 @@ const ROLL_FRICTION = 0.76;
 const MIN_BOUNCE_SPEED = 115;
 const ROCK_RADIUS = 8;
 const PLAYER_HIT_DAMAGE = 12;
+const PLAYER_MAX_HEALTH = 100;
 const ATTACK_WIDTH = 64;
 const SHADOW_BASE_WIDTH = 34;
 const SHADOW_BASE_HEIGHT = ATTACK_WIDTH;
@@ -47,7 +50,10 @@ export class EnemyProjectileSystem {
 
   update(time: number, deltaMs: number) {
     const throwingEnemies = this.enemies.filter(
-      (enemy) => enemy.definition.id === "data-colossus" && !enemy.isDefeated(),
+      (enemy) =>
+        enemy.definition.id === "syntax-gremlin" &&
+        !enemy.isDefeated() &&
+        enemy.container.getData("entryTargetX") === undefined,
     );
 
     if (throwingEnemies.length > 0 && time >= this.nextFireAt) {
@@ -67,8 +73,15 @@ export class EnemyProjectileSystem {
     const spread = randomBetween(-42, 42);
     const lobForce = randomBetween(320, 420);
     const body = this.scene.add
-      .circle(startX, laneY - startAltitude, ROCK_RADIUS, 0x6b7280)
-      .setStrokeStyle(2, 0xd1d5db, 0.85)
+      .text(startX, laneY - startAltitude, ";", {
+        color: "#f97316",
+        fontFamily: "monospace",
+        fontSize: "32px",
+        fontStyle: "700",
+        stroke: "#431407",
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5)
       .setDepth(12);
     const shadow = this.scene.add
       .ellipse(
@@ -209,7 +222,11 @@ export class EnemyProjectileSystem {
 
   private dispatchPlayerHit(projectile: EnemyProjectile) {
     projectile.hasHitPlayer = true;
-    projectile.body.setFillStyle(0xfca5a5, 1);
+    projectile.body.setTint(0xfca5a5);
+    playHitShake(
+      this.scene,
+      getPlayerDamageShakeIntensity(PLAYER_HIT_DAMAGE, PLAYER_MAX_HEALTH),
+    );
 
     window.dispatchEvent(
       new CustomEvent("codebound:enemy-projectile-hit", {
@@ -229,4 +246,21 @@ export class EnemyProjectileSystem {
 
 function randomBetween(min: number, max: number) {
   return Phaser.Math.FloatBetween(min, max);
+}
+
+function getPlayerDamageShakeIntensity(
+  damage: number,
+  maxHealth: number,
+): ScreenShakeIntensity {
+  const damagePercent = damage / maxHealth;
+
+  if (damagePercent >= 0.5) {
+    return "heavy";
+  }
+
+  if (damagePercent > 0.1) {
+    return "normal";
+  }
+
+  return "light";
 }

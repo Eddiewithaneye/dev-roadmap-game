@@ -5,6 +5,7 @@ export function AbilitySlot({
   icon,
   imageSrc,
   label,
+  shortcutLabel,
   locked = false,
   active = false,
   cooldownProgress = 0,
@@ -28,6 +29,12 @@ export function AbilitySlot({
           : "border-cyan-300/30"
       } ${locked ? "opacity-60" : ""}`}
     >
+      {shortcutLabel ? (
+        <div className="absolute -left-2 -top-2 z-10 flex h-7 min-w-7 items-center justify-center border border-cyan-200/70 bg-black px-2 text-xs font-black text-cyan-100 shadow-[0_0_14px_rgba(56,189,248,0.25)]">
+          {shortcutLabel}
+        </div>
+      ) : null}
+
       <button
         type="button"
         onClick={onClick}

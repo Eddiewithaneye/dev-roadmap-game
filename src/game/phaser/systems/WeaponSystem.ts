@@ -10,7 +10,7 @@ import {
 import type { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
 import { WeaponEffects } from "@/game/phaser/effects/WeaponEffects";
-import type { WeaponEffect } from "@/types/weapon";
+import type { ScreenShakeIntensity, WeaponEffect } from "@/types/weapon";
 
 const STRAIGHT_SHOT_WIDTH = 64;
 const STRAIGHT_SHOT_RANGE_UNIT_PX = 56;
@@ -29,16 +29,24 @@ export class WeaponSystem {
     this.isDevMode = isDevMode;
   }
 
-  fire(effect: WeaponEffect, damage: number, range: number) {
+  fire(
+    effect: WeaponEffect,
+    damage: number,
+    range: number,
+    screenShakeIntensity: ScreenShakeIntensity,
+  ) {
     if (effect === "straight-shot") {
-      this.fireStraightShot(damage, range);
+      this.fireStraightShot(damage, range, screenShakeIntensity);
       return;
     }
 
-    this.fireChainSpark(damage);
+    this.fireChainSpark(damage, screenShakeIntensity);
   }
 
-  private fireChainSpark(damage: number) {
+  private fireChainSpark(
+    damage: number,
+    screenShakeIntensity: ScreenShakeIntensity,
+  ) {
     const target = this.getClosestLiveEnemy();
 
     if (!target) {
@@ -49,12 +57,18 @@ export class WeaponSystem {
       this.scene,
       this.player.getCastOrigin(),
       target.container,
+      { scale: this.player.getDepthScale() },
     );
-    this.applyHit(target, damage);
+    this.applyHit(target, damage, screenShakeIntensity);
   }
 
-  private fireStraightShot(damage: number, range: number) {
+  private fireStraightShot(
+    damage: number,
+    range: number,
+    screenShakeIntensity: ScreenShakeIntensity,
+  ) {
     const direction = this.player.getFacing();
+    const scale = this.player.getDepthScale();
     const rangePixels = Math.min(
       range * STRAIGHT_SHOT_RANGE_UNIT_PX,
       this.scene.scale.width * 0.92,
@@ -63,6 +77,7 @@ export class WeaponSystem {
       this.player.container,
       direction,
       rangePixels,
+      scale,
     );
     const hits = this.enemies
       .filter((enemy) => this.isEnemyInStraightShot(enemy, hitbox))
@@ -79,6 +94,7 @@ export class WeaponSystem {
       rangePixels,
       {
         debugHitbox: hitbox,
+        scale,
         showDebug: this.isDevMode,
       },
     );
@@ -98,7 +114,7 @@ export class WeaponSystem {
       );
 
       this.scene.time.delayedCall(hitDelay, () => {
-        this.applyHit(enemy, damage);
+        this.applyHit(enemy, damage, screenShakeIntensity);
       });
     });
   }
@@ -132,7 +148,11 @@ export class WeaponSystem {
       .sort((a, b) => a.distance - b.distance)[0]?.enemy;
   }
 
-  private applyHit(enemy: EnemyActor, damage: number) {
+  private applyHit(
+    enemy: EnemyActor,
+    damage: number,
+    screenShakeIntensity: ScreenShakeIntensity,
+  ) {
     if (!enemy.applyDamage(this.scene, damage)) {
       return;
     }
@@ -148,7 +168,7 @@ export class WeaponSystem {
         intensity,
       },
     );
-    playHitShake(this.scene, intensity);
+    playHitShake(this.scene, screenShakeIntensity);
 
     if (!enemy.isDefeated()) {
       flashHitTarget(this.scene, enemy.container, intensity);
@@ -166,15 +186,17 @@ function getStraightShotHitbox(
   player: Phaser.GameObjects.Container,
   direction: -1 | 1,
   rangePixels: number,
+  scale: number,
 ) {
-  const startX = player.x + direction * 34;
-  const top = player.y - 56 - STRAIGHT_SHOT_WIDTH / 2;
+  const scaledWidth = STRAIGHT_SHOT_WIDTH * scale;
+  const startX = player.x + direction * 34 * scale;
+  const top = player.y - 56 * scale - scaledWidth / 2;
 
   return new Phaser.Geom.Rectangle(
     direction === 1 ? startX : startX - rangePixels,
     top,
     rangePixels,
-    STRAIGHT_SHOT_WIDTH,
+    scaledWidth,
   );
 }
 

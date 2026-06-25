@@ -2,37 +2,29 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
+import { ENEMIES } from "@/game/config/enemies";
 import { RUN_TUNING } from "@/game/config/run";
 import {
   canAttack,
   damageEnemy,
-  getCooldownRemaining,
   getNextReadyTime,
   spawnEnemy,
 } from "@/game/domain/combat";
-import {
-  javascriptLanguageWeapon,
-  sqlBowWeapon,
-} from "@/game/config/weapons";
-import type { Weapon } from "@/types/weapon";
-
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { WeaponPanel } from "./WeaponPanel";
-import type { DevToolsPosition, WeaponSlot } from "./types";
+import type { DevToolsPosition, PrimaryTarget, WeaponSlot } from "./types";
+import type {
+  TunableWeaponSlot,
+  WeaponTuningField,
+} from "../game/stores/weaponSlice";
 import { useGameStore } from "@/components/game/stores/useGameStore";
 
 type GameShellProps = {
   children: ReactNode;
 };
 
-const INITIAL_HEALTH = 100;
 const WEAPON_SLOTS: WeaponSlot[] = ["language", "sql", "locked3", "locked4"];
-const weaponBySlot: Partial<Record<WeaponSlot, Weapon>> = {
-  language: javascriptLanguageWeapon,
-  sql: sqlBowWeapon,
-};
-
 export function GameShell({ children }: GameShellProps) {
   // PlayerSlice
   const health = useGameStore((state) => state.health);
@@ -44,10 +36,13 @@ export function GameShell({ children }: GameShellProps) {
   const takeDamage = useGameStore((state) => state.takeDamage);
   const defeatEnemy = useGameStore((state) => state.defeatEnemy);
   const resetRun = useGameStore((state) => state.resetRun);
+  const weaponsBySlot = useGameStore((state) => state.weaponsBySlot);
+  const updateTunedWeaponField = useGameStore(
+    (state) => state.updateWeaponField,
+  );
   
   // UI responsible state hooks
-  const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
-  const [enemy, setEnemy] = useState(() => spawnEnemy());
+  const [, setEnemy] = useState(() => spawnEnemy());
   const [readyAtBySlot, setReadyAtBySlot] = useState<
     Partial<Record<WeaponSlot, number>>
   >({});
@@ -55,29 +50,35 @@ export function GameShell({ children }: GameShellProps) {
   const [activeWeaponSlot, setActiveWeaponSlot] =
     useState<WeaponSlot>("language");
   const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
-  const [isUpgradePanelOpen, setIsUpgradePanelOpen] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(false);
+  const [, setIsUpgradePanelOpen] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(() => getInitialDevMode());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
-    useState<DevToolsPosition>("top");
+    useState<DevToolsPosition>(() => getInitialDevToolsPosition());
+  const [isDevToolsMinimized, setIsDevToolsMinimized] = useState(false);
   const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
+  const [pausedRunElapsedMs, setPausedRunElapsedMs] = useState(0);
+  const [isRunTimerPaused, setIsRunTimerPaused] = useState(false);
   const [isRunVictorious, setIsRunVictorious] = useState(false);
+  const [primaryTarget, setPrimaryTarget] = useState<PrimaryTarget | null>(null);
   
 
   // constants  
   const isPlayerDefeated = health <= 0;
-  const activeReadyAt = readyAtBySlot[activeWeaponSlot] ?? 0;
-  const weaponReady = canAttack(activeReadyAt, now);
-  const cooldownRemaining = getCooldownRemaining(activeReadyAt, now);
+  const activeTunableSlot = getTunableWeaponSlot(activeWeaponSlot);
+  const weapon = weaponsBySlot[activeTunableSlot ?? "language"];
   const weaponCooldownProgressBySlot = getCooldownProgressBySlot(
     readyAtBySlot,
     now,
+    weaponsBySlot,
   );
 
+  const runElapsedMs = isRunTimerPaused
+    ? pausedRunElapsedMs
+    : pausedRunElapsedMs + now - runStartedAt;
   const remainingRunSeconds = Math.max(
     0,
-    RUN_TUNING.survivalGoalSeconds -
-      Math.floor((now - runStartedAt) / 1000),
+    RUN_TUNING.survivalGoalSeconds - Math.floor(runElapsedMs / 1000),
   );
 
   const isRunOver = !isRunVictorious && (isPlayerDefeated || remainingRunSeconds <= 0);
@@ -92,6 +93,7 @@ export function GameShell({ children }: GameShellProps) {
   useEffect(() => {
     const codeboundWindow = window as Window & {
       __codeboundDevMode?: boolean;
+      __codeboundRunTimerPaused?: boolean;
     };
 
     codeboundWindow.__codeboundDevMode = isDevMode;
@@ -102,16 +104,21 @@ export function GameShell({ children }: GameShellProps) {
     );
   }, [isDevMode]);
 
+  useEffect(() => {
+    const codeboundWindow = window as Window & {
+      __codeboundRunTimerPaused?: boolean;
+    };
+
+    codeboundWindow.__codeboundRunTimerPaused = isRunTimerPaused;
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: isRunTimerPaused, isRestarted: false },
+      }),
+    );
+  }, [isRunTimerPaused]);
+
   const selectWeapon = useCallback((slot: WeaponSlot) => {
-    const nextWeapon = weaponBySlot[slot];
-
-    if (!nextWeapon) {
-      setActiveWeaponSlot(slot);
-      return;
-    }
-
     setActiveWeaponSlot(slot);
-    setWeapon(nextWeapon);
   }, []);
 
   const cycleWeapon = useCallback(
@@ -141,7 +148,7 @@ export function GameShell({ children }: GameShellProps) {
         return nextEnemy;
       });
     },
-    [weapon, xpGoal],
+    [weapon],
   );
 
   const fireWeapon = useCallback((slot: WeaponSlot) => {
@@ -149,11 +156,13 @@ export function GameShell({ children }: GameShellProps) {
       return;
     }
 
-    const selectedWeapon = weaponBySlot[slot];
+    const tunableSlot = getTunableWeaponSlot(slot);
 
-    if (!selectedWeapon) {
+    if (!tunableSlot) {
       return;
     }
+
+    const selectedWeapon = weaponsBySlot[tunableSlot];
 
     const attackTime = Date.now();
     const slotReadyAt = readyAtBySlot[slot] ?? 0;
@@ -172,21 +181,90 @@ export function GameShell({ children }: GameShellProps) {
           damage: selectedWeapon.damage,
           effect: selectedWeapon.effect,
           range: selectedWeapon.range,
+          screenShakeIntensity: selectedWeapon.screenShakeIntensity,
         },
       }),
     );
 
-  }, [applyEnemyDamage, isPlayerDefeated, readyAtBySlot]);
+  }, [isPlayerDefeated, readyAtBySlot, weaponsBySlot]);
 
   const handleAttack = useCallback(() => {
     fireWeapon(activeWeaponSlot);
   }, [activeWeaponSlot, fireWeapon]);
 
+  const spawnRandomEnemy = useCallback(() => {
+    const enemyDefinition = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
+
+    setEnemy(spawnEnemy(enemyDefinition.id));
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-spawn-enemy", {
+        detail: { enemyId: enemyDefinition.id },
+      }),
+    );
+  }, []);
+
+  const skipToMiniboss = useCallback(() => {
+    const minibossPreviewElapsedMs = 149_000;
+
+    setPausedRunElapsedMs(minibossPreviewElapsedMs);
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-skip-to-miniboss", {
+        detail: { elapsedMs: minibossPreviewElapsedMs },
+      }),
+    );
+  }, []);
+
+  const playRunTimer = useCallback(() => {
+    if (!isRunTimerPaused) {
+      return;
+    }
+
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: false, isRestarted: false },
+      }),
+    );
+  }, [isRunTimerPaused]);
+
+  const pauseRunTimer = useCallback(() => {
+    if (isRunTimerPaused) {
+      return;
+    }
+
+    setPausedRunElapsedMs((elapsedMs) => elapsedMs + Date.now() - runStartedAt);
+    setIsRunTimerPaused(true);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: true, isRestarted: false },
+      }),
+    );
+  }, [isRunTimerPaused, runStartedAt]);
+
+  const restartRunTimer = useCallback(() => {
+    setPausedRunElapsedMs(0);
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+    setIsRunVictorious(false);
+    setPrimaryTarget(null);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: false, isRestarted: true },
+      }),
+    );
+  }, []);
+
   const restartRun = useCallback(() => {
     resetRun();
     setEnemy(spawnEnemy());
     setReadyAtBySlot({});
+    setPausedRunElapsedMs(0);
     setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
     setIsRunVictorious(false);
     setIsUpgradePanelOpen(false);
     window.dispatchEvent(new Event("codebound:run-restarted"));
@@ -288,6 +366,36 @@ export function GameShell({ children }: GameShellProps) {
   }, [applyEnemyDamage]);
 
   useEffect(() => {
+    function handlePrimaryTargetUpdated(event: Event) {
+      setPrimaryTarget((event as CustomEvent<PrimaryTarget>).detail);
+    }
+
+    function handlePrimaryTargetCleared() {
+      setPrimaryTarget(null);
+    }
+
+    window.addEventListener(
+      "codebound:primary-target-updated",
+      handlePrimaryTargetUpdated,
+    );
+    window.addEventListener(
+      "codebound:primary-target-cleared",
+      handlePrimaryTargetCleared,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:primary-target-updated",
+        handlePrimaryTargetUpdated,
+      );
+      window.removeEventListener(
+        "codebound:primary-target-cleared",
+        handlePrimaryTargetCleared,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     function handleRewards(event: Event){
       const {xpReward} = (event as CustomEvent<{xpReward: number}>).detail;
 
@@ -317,11 +425,12 @@ export function GameShell({ children }: GameShellProps) {
     }
   }, [isPlayerDefeated, remainingRunSeconds]);
 
-  const updateWeaponField = (
-    field: "damage" | "cooldown" | "range",
-    value: number,
-  ) => {
-    setWeapon((current) => ({ ...current, [field]: value }));
+  const updateWeaponField = (field: WeaponTuningField, value: number) => {
+    if (!activeTunableSlot) {
+      return;
+    }
+
+    updateTunedWeaponField(activeTunableSlot, field, value);
   };
 
   useEffect(() => {
@@ -345,6 +454,14 @@ export function GameShell({ children }: GameShellProps) {
 
       {isDevMode ? (
         <DevControls
+          isMinimized={isDevToolsMinimized}
+          isRunTimerPaused={isRunTimerPaused}
+          onMinimizedChange={setIsDevToolsMinimized}
+          onRunTimerPause={pauseRunTimer}
+          onRunTimerPlay={playRunTimer}
+          onRunTimerRestart={restartRunTimer}
+          onSkipToMiniboss={skipToMiniboss}
+          onSpawnEnemy={spawnRandomEnemy}
           position={devToolsPosition}
           setPosition={setDevToolsPosition}
         />
@@ -352,11 +469,8 @@ export function GameShell({ children }: GameShellProps) {
 
       {isWeaponPanelOpen ? (
         <WeaponPanel
-          cooldownRemaining={cooldownRemaining}
-          isReady={weaponReady}
           mode={isDevMode ? "dev" : "player"}
           onClose={() => setIsWeaponPanelOpen(false)}
-          onAttack={handleAttack}
           onCooldownChange={(value) => updateWeaponField("cooldown", value)}
           onDamageChange={(value) => updateWeaponField("damage", value)}
           onRangeChange={(value) => updateWeaponField("range", value)}
@@ -406,7 +520,7 @@ export function GameShell({ children }: GameShellProps) {
       ) : null}
 
       <GameHud
-        enemy = {enemy}
+        primaryTarget={primaryTarget}
         runTimeLabel={runTimeLabel}
         isDevMode={isDevMode}
         isSettingsOpen={isSettingsOpen}
@@ -424,6 +538,18 @@ export function GameShell({ children }: GameShellProps) {
       />
     </main>
   );
+}
+
+function getInitialDevMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return new URLSearchParams(window.location.search).get("devMode") === "true";
+}
+
+function getInitialDevToolsPosition(): DevToolsPosition {
+  return getInitialDevMode() ? "left" : "top";
 }
 
 function formatRunTime(totalSeconds: number) {
@@ -458,10 +584,12 @@ function getQuickWeaponSlot(code: string): WeaponSlot | null {
 function getCooldownProgressBySlot(
   readyAtBySlot: Partial<Record<WeaponSlot, number>>,
   now: number,
+  weaponsBySlot: Record<TunableWeaponSlot, { cooldown: number }>,
 ) {
   return Object.fromEntries(
     WEAPON_SLOTS.map((slot) => {
-      const slotWeapon = weaponBySlot[slot];
+      const tunableSlot = getTunableWeaponSlot(slot);
+      const slotWeapon = tunableSlot ? weaponsBySlot[tunableSlot] : null;
       const readyAt = readyAtBySlot[slot] ?? 0;
 
       if (!slotWeapon || canAttack(readyAt, now)) {
@@ -474,4 +602,12 @@ function getCooldownProgressBySlot(
       ];
     }),
   ) as Partial<Record<WeaponSlot, number>>;
+}
+
+function getTunableWeaponSlot(slot: WeaponSlot): TunableWeaponSlot | null {
+  if (slot === "language" || slot === "sql") {
+    return slot;
+  }
+
+  return null;
 }

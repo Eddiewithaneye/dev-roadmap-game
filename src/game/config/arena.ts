@@ -16,10 +16,10 @@ export const ARENA_LAYOUT = {
     bottomPercent: 24,
   },
   walkableArea: {
-    xPercent: 6,
-    yPercent: 40,
-    widthPercent: 88,
-    heightPercent: 32,
+    xPercent: 3,
+    yPercent: 28,
+    widthPercent: 82,
+    heightPercent: 58,
   },
 } as const satisfies {
   camera: {

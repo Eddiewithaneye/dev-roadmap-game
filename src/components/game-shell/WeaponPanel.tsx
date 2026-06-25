@@ -4,10 +4,7 @@ import type { WeaponPanelProps } from "./types";
 export function WeaponPanel({
   weapon,
   mode,
-  isReady,
-  cooldownRemaining,
   onClose,
-  onAttack,
   onDamageChange,
   onCooldownChange,
   onRangeChange,
@@ -15,7 +12,7 @@ export function WeaponPanel({
   const isDevMode = mode === "dev";
 
   return (
-    <div className="pointer-events-auto absolute bottom-32 left-1/2 z-20 w-[360px] -translate-x-1/2 rounded border border-cyan-300/30 bg-black/80 p-4 shadow-[0_0_60px_rgba(8,145,178,0.2)]">
+    <div className="pointer-events-auto absolute right-6 top-52 z-20 w-[360px] rounded border border-cyan-300/30 bg-black/80 p-4 shadow-[0_0_60px_rgba(8,145,178,0.2)]">
       <button
         type="button"
         className="absolute right-2 top-2 flex h-7 w-7 cursor-pointer items-center justify-center rounded border border-cyan-300/40 bg-black/70 text-sm font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-500/20"
@@ -90,14 +87,6 @@ export function WeaponPanel({
           />
         </div>
       ) : null}
-
-      <button
-        className="mt-4 w-full rounded bg-cyan-300 px-4 py-3 font-bold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-cyan-800/60"
-        onClick={onAttack}
-        disabled={!isReady}
-      >
-        {isReady ? `Use ${weapon.weaponName}` : `Ready in ${cooldownRemaining}s`}
-      </button>
     </div>
   );
 }

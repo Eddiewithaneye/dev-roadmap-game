@@ -5,18 +5,29 @@ type PositionLike = {
   y: number;
 };
 
+type SparkOptions = {
+  scale?: number;
+};
+
 type StraightShotOptions = {
   debugHitbox?: Phaser.Geom.Rectangle;
+  scale?: number;
   showDebug?: boolean;
 };
 
 const DEBUG_HITBOX_COLOR = 0xff8a00;
 
 export class WeaponEffects {
-  static spark(scene: Phaser.Scene, from: PositionLike, to: PositionLike) {
+  static spark(
+    scene: Phaser.Scene,
+    from: PositionLike,
+    to: PositionLike,
+    options: SparkOptions = {},
+  ) {
+    const scale = options.scale ?? 1;
     const target = {
       x: to.x,
-      y: to.y - 48,
+      y: to.y - 48 * scale,
     };
     const bolt = scene.add.graphics().setDepth(Math.max(from.y, target.y) + 24);
     const flare = scene.add
@@ -24,21 +35,21 @@ export class WeaponEffects {
       .setDepth(from.y + 48);
 
     flare.fillStyle(0x67e8f9, 0.4);
-    flare.fillCircle(0, 0, 22);
+    flare.fillCircle(0, 0, 22 * scale);
     flare.fillStyle(0xe0f2fe, 0.95);
-    flare.fillCircle(0, 0, 7);
-    flare.lineStyle(2, 0xffffff, 0.75);
-    flare.strokeCircle(0, 0, 12);
+    flare.fillCircle(0, 0, 7 * scale);
+    flare.lineStyle(2 * scale, 0xffffff, 0.75);
+    flare.strokeCircle(0, 0, 12 * scale);
 
-    bolt.lineStyle(7, 0x0e7490, 0.42);
+    bolt.lineStyle(7 * scale, 0x0e7490, 0.42);
     bolt.strokeLineShape(
       new Phaser.Geom.Line(from.x, from.y, target.x, target.y),
     );
-    bolt.lineStyle(3, 0x67e8f9, 1);
+    bolt.lineStyle(3 * scale, 0x67e8f9, 1);
     bolt.strokeLineShape(
       new Phaser.Geom.Line(from.x, from.y, target.x, target.y),
     );
-    bolt.lineStyle(1, 0xffffff, 0.9);
+    bolt.lineStyle(Math.max(1, scale), 0xffffff, 0.9);
     bolt.strokeLineShape(
       new Phaser.Geom.Line(from.x, from.y, target.x, target.y),
     );
@@ -68,12 +79,13 @@ export class WeaponEffects {
     rangePixels: number,
     options: StraightShotOptions = {},
   ) {
-    const startX = from.x + direction * 34;
-    const y = from.y - 56;
+    const scale = options.scale ?? 1;
+    const startX = from.x + direction * 34 * scale;
+    const y = from.y - 56 * scale;
     const arrow = scene.add
       .graphics({ x: startX, y })
       .setDepth(from.y + 24)
-      .setScale(direction, 1);
+      .setScale(direction * scale, scale);
 
     arrow.fillStyle(0x67e8f9, 0.24);
     arrow.fillRect(-42, -2, 18, 4);
