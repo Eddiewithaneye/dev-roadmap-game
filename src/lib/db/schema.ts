@@ -24,6 +24,16 @@ export const users = pgTable('users', {
   image: text('image'),
 });
 
+export const playerProfiles = pgTable('player_profiles', {
+  userId: text('user_id')
+          .primaryKey()
+          .references(() => users.id, {onDelete: 'cascade'}),
+  displayName: text('display_name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow()
+    .$onUpdate(() => new Date()).notNull()
+});
+
 export const accounts = pgTable(
   'accounts',
   {

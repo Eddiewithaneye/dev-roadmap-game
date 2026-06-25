@@ -56,20 +56,26 @@ export default async function Home() {
               </form>
             </>
           ) : (
+           <div className="flex gap-4">
             <form
               action={async () => {
                 "use server";
                 await signIn("google");
               }}
             >
-              <button
-                className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] sm:w-auto"
-                type="submit"
-              >
-                Test Login Flow
-              </button>
+              <button type="submit">Login with Google</button>
             </form>
-          )}
+
+            <form
+              action={async () => {
+                "use server";
+                await signIn("github");
+              }}
+            >
+              <button type="submit">Login with GitHub</button>
+            </form>
+        </div>
+        )}
         </div>
       </main>
     </div>
