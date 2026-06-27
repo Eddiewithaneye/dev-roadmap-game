@@ -11,6 +11,7 @@ type SparkOptions = {
 
 type StraightShotOptions = {
   debugHitbox?: Phaser.Geom.Rectangle;
+  laneOffset?: number;
   scale?: number;
   showDebug?: boolean;
 };
@@ -81,7 +82,7 @@ export class WeaponEffects {
   ) {
     const scale = options.scale ?? 1;
     const startX = from.x + direction * 34 * scale;
-    const y = from.y - 56 * scale;
+    const y = from.y - 56 * scale + (options.laneOffset ?? 0);
     const arrow = scene.add
       .graphics({ x: startX, y })
       .setDepth(from.y + 24)

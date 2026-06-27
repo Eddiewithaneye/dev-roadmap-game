@@ -5,6 +5,7 @@ import type { EnemyDefinition } from "@/game/config/enemies";
 export type EnemyActorOptions = {
   isMiniBoss?: boolean;
   isPrimaryTarget?: boolean;
+  gameplayScale?: number;
   scaleMultiplier?: number;
 };
 
@@ -14,6 +15,7 @@ export class EnemyActor {
   readonly isMiniBoss: boolean;
   readonly isPrimaryTarget: boolean;
   private depthScale = 1;
+  private gameplayScale: number;
   private health: number;
   private readonly maxHealth: number;
   private readonly scaleMultiplier: number;
@@ -31,6 +33,7 @@ export class EnemyActor {
     this.isMiniBoss = options.isMiniBoss ?? false;
     this.isPrimaryTarget = options.isPrimaryTarget ?? false;
     this.scaleMultiplier = options.scaleMultiplier ?? (this.isMiniBoss ? 1.8 : 1);
+    this.gameplayScale = options.gameplayScale ?? 1;
     this.maxHealth = enemy.health;
     this.health = this.maxHealth;
 
@@ -77,7 +80,9 @@ export class EnemyActor {
 
   setDepthScale(scale: number) {
     this.depthScale = scale;
-    this.container.setScale(this.depthScale * this.scaleMultiplier);
+    this.container.setScale(
+      this.depthScale * this.scaleMultiplier * this.gameplayScale,
+    );
     this.drawHealthBar();
   }
 
@@ -106,7 +111,7 @@ export class EnemyActor {
     );
   }
 
-  applyDamage(scene: Phaser.Scene, damage: number) {
+  applyDamage(scene: Phaser.Scene, damage: number, attackId: string | null) {
     if (this.defeated) {
       return false;
     }
@@ -131,6 +136,13 @@ export class EnemyActor {
           id: this.definition.id,
           name: this.definition.name,
           xpReward: this.definition.xpReward,
+          codeFragmentReward: Math.max(
+            5,
+            Math.round(this.definition.xpReward / 2),
+          ),
+          x: this.container.x,
+          y: this.container.y,
+          attackId,
         },
       }),
     );

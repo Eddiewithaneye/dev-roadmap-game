@@ -4,8 +4,9 @@ import type { EnemyActor } from "@/game/phaser/objects/EnemyActor";
 import type { ArenaRect } from "@/game/domain/types";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
 import { playHitShake } from "@/game/phaser/feedback/HitFeedback";
+import { resolveEnemyPosition } from "@/game/phaser/systems/EnemySpacingSystem";
 import type { ScreenShakeIntensity } from "@/types/weapon";
-import { getDepthScale } from "@/game/phaser/worldDepth";
+import { getDepthScale, type DepthScaleProfile } from "@/game/phaser/worldDepth";
 
 type WispState = {
   nextSwitchAt: number;
@@ -24,7 +25,7 @@ type NullWraithState = {
   wand?: Phaser.GameObjects.Graphics;
 };
 
-const WISP_MELEE_RANGE = 100;
+const WISP_MELEE_RANGE = 78;
 const WISP_MELEE_COOLDOWN_MS = 1350;
 const WISP_WALK_DURATION_MS = 650;
 const WISP_STOP_DURATION_MS = 360;
@@ -48,6 +49,8 @@ export class EnemyMovementSystem {
     private readonly enemies: EnemyActor[],
     private readonly player: PlayerActor,
     private readonly walkableArea: ArenaRect,
+    private readonly gameplayScale = 1,
+    private readonly depthScaleProfile?: DepthScaleProfile,
   ) {}
 
   update(time: number, deltaMs: number) {
@@ -92,32 +95,53 @@ export class EnemyMovementSystem {
     const step =
       enemy.definition.speed *
       ENTRY_SPEED_MULTIPLIER *
+      this.gameplayScale *
       Math.min(deltaMs, 50) *
       0.001;
-    enemy.container.x = Math.max(entryTargetX, enemy.container.x - step);
+    const resolvedPosition = resolveEnemyPosition(
+      enemy,
+      Math.max(entryTargetX, enemy.container.x - step),
+      enemy.container.y,
+      this.enemies,
+      this.walkableArea,
+      {
+        maxPushX: 8,
+        maxPushY: 12,
+        maxX: this.walkableArea.x + this.walkableArea.width + 160,
+      },
+    );
+    enemy.container.x = resolvedPosition.x;
+    enemy.container.y = resolvedPosition.y;
     enemy.container.setDepth(enemy.container.y);
-    enemy.setDepthScale(getDepthScale(enemy.container.y, this.walkableArea));
+    enemy.setDepthScale(
+      getDepthScale(
+        enemy.container.y,
+        this.walkableArea,
+        this.depthScaleProfile,
+      ),
+    );
 
     return true;
   }
 
   private updateRangedEnemy(enemy: EnemyActor, deltaMs: number) {
     const frameMs = Math.min(deltaMs, 50);
+    const preferredDistance =
+      RANGED_ENEMY_PREFERRED_DISTANCE * this.gameplayScale;
+    const deadband = RANGED_ENEMY_DISTANCE_DEADBAND * this.gameplayScale;
     const targetX = Phaser.Math.Clamp(
-      this.player.container.x + RANGED_ENEMY_PREFERRED_DISTANCE,
+      this.player.container.x + preferredDistance,
       this.walkableArea.x + 80,
       this.walkableArea.x + this.walkableArea.width - 44,
     );
     const dx = targetX - enemy.container.x;
     const maxHorizontalStep = enemy.definition.speed * frameMs * 0.001;
 
-    if (Math.abs(dx) > RANGED_ENEMY_DISTANCE_DEADBAND) {
-      enemy.container.x += Phaser.Math.Clamp(
-        dx,
-        -maxHorizontalStep,
-        maxHorizontalStep,
-      );
-    }
+    const desiredX =
+      Math.abs(dx) > deadband
+        ? enemy.container.x +
+          Phaser.Math.Clamp(dx, -maxHorizontalStep, maxHorizontalStep)
+        : enemy.container.x;
 
     const targetY = Phaser.Math.Clamp(
       this.player.container.y,
@@ -131,14 +155,29 @@ export class EnemyMovementSystem {
       frameMs *
       0.001;
 
-    enemy.container.y = Phaser.Math.Clamp(
-      enemy.container.y +
-        Phaser.Math.Clamp(dy, -maxVerticalStep, maxVerticalStep),
+    const desiredY = Phaser.Math.Clamp(
+      enemy.container.y + Phaser.Math.Clamp(dy, -maxVerticalStep, maxVerticalStep),
       this.walkableArea.y,
       this.walkableArea.y + this.walkableArea.height,
     );
+    const resolvedPosition = resolveEnemyPosition(
+      enemy,
+      desiredX,
+      desiredY,
+      this.enemies,
+      this.walkableArea,
+      { horizontalAwareness: 132, maxPushX: 14, maxPushY: 16 },
+    );
+    enemy.container.x = resolvedPosition.x;
+    enemy.container.y = resolvedPosition.y;
     enemy.container.setDepth(enemy.container.y);
-    enemy.setDepthScale(getDepthScale(enemy.container.y, this.walkableArea));
+    enemy.setDepthScale(
+      getDepthScale(
+        enemy.container.y,
+        this.walkableArea,
+        this.depthScaleProfile,
+      ),
+    );
   }
 
   private updateSpacingWisp(enemy: EnemyActor, time: number, deltaMs: number) {
@@ -153,22 +192,39 @@ export class EnemyMovementSystem {
     const dx = this.player.container.x - enemy.container.x;
     const dy = this.player.container.y - enemy.container.y;
     const distance = Math.hypot(dx, dy);
+    const meleeRange = this.getWispMeleeRange();
 
-    if (state.isWalking && distance > WISP_MELEE_RANGE * 0.72) {
+    if (state.isWalking && distance > meleeRange * 0.72) {
       const step = enemy.definition.speed * Math.min(deltaMs, 50) * 0.001;
-      enemy.container.x += (dx / Math.max(1, distance)) * step;
-      enemy.container.y = Phaser.Math.Clamp(
+      const desiredX = enemy.container.x + (dx / Math.max(1, distance)) * step;
+      const desiredY = Phaser.Math.Clamp(
         enemy.container.y + (dy / Math.max(1, distance)) * step,
         this.walkableArea.y,
         this.walkableArea.y + this.walkableArea.height,
       );
+      const resolvedPosition = resolveEnemyPosition(
+        enemy,
+        desiredX,
+        desiredY,
+        this.enemies,
+        this.walkableArea,
+        { horizontalAwareness: 118, maxPushX: 18, maxPushY: 20 },
+      );
+      enemy.container.x = resolvedPosition.x;
+      enemy.container.y = resolvedPosition.y;
       enemy.container.setDepth(enemy.container.y);
-      enemy.setDepthScale(getDepthScale(enemy.container.y, this.walkableArea));
+      enemy.setDepthScale(
+        getDepthScale(
+          enemy.container.y,
+          this.walkableArea,
+          this.depthScaleProfile,
+        ),
+      );
     }
 
-    if (distance <= WISP_MELEE_RANGE && time >= state.nextMeleeAt) {
+    if (distance <= meleeRange && time >= state.nextMeleeAt) {
       state.nextMeleeAt = time + WISP_MELEE_COOLDOWN_MS;
-      this.meleeSwipe(enemy, distance);
+      this.meleeSwipe(enemy, distance, meleeRange);
     }
   }
 
@@ -194,16 +250,37 @@ export class EnemyMovementSystem {
 
     if (!state.isCharging && distance > 260) {
       const step = enemy.definition.speed * 0.42 * Math.min(deltaMs, 50) * 0.001;
-      enemy.container.x += (dx / Math.max(1, distance)) * step;
-      enemy.container.y = Phaser.Math.Clamp(
+      const desiredX = enemy.container.x + (dx / Math.max(1, distance)) * step;
+      const desiredY = Phaser.Math.Clamp(
         enemy.container.y + (dy / Math.max(1, distance)) * step * 0.45,
         this.walkableArea.y,
         this.walkableArea.y + this.walkableArea.height,
       );
+      const resolvedPosition = resolveEnemyPosition(
+        enemy,
+        desiredX,
+        desiredY,
+        this.enemies,
+        this.walkableArea,
+        {
+          horizontalAwareness: 168,
+          minDepthGap: 34,
+          maxPushX: 10,
+          maxPushY: 14,
+        },
+      );
+      enemy.container.x = resolvedPosition.x;
+      enemy.container.y = resolvedPosition.y;
     }
 
     enemy.container.setDepth(enemy.container.y);
-    enemy.setDepthScale(getDepthScale(enemy.container.y, this.walkableArea));
+    enemy.setDepthScale(
+      getDepthScale(
+        enemy.container.y,
+        this.walkableArea,
+        this.depthScaleProfile,
+      ),
+    );
     this.drawNullPointer(enemy, state);
 
     if (!state.isCharging && time >= state.nextAttackAt) {
@@ -281,10 +358,18 @@ export class EnemyMovementSystem {
     return state;
   }
 
-  private meleeSwipe(enemy: EnemyActor, distance: number) {
+  private meleeSwipe(enemy: EnemyActor, distance: number, meleeRange: number) {
+    const scale = Math.max(0.5, this.gameplayScale);
     const swipe = this.scene.add
-      .arc(enemy.container.x, enemy.container.y - 36, 54, 20, 340, false)
-      .setStrokeStyle(5, 0x67e8f9, 0.9)
+      .arc(
+        enemy.container.x,
+        enemy.container.y - 36 * scale,
+        42 * scale,
+        20,
+        340,
+        false,
+      )
+      .setStrokeStyle(Math.max(2, 4 * scale), 0x67e8f9, 0.9)
       .setDepth(enemy.container.y + 18);
 
     this.scene.tweens.add({
@@ -297,9 +382,13 @@ export class EnemyMovementSystem {
       onComplete: () => swipe.destroy(),
     });
 
-    if (distance <= WISP_MELEE_RANGE) {
+    if (distance <= meleeRange) {
       this.dispatchPlayerHit(enemy.getDamage());
     }
+  }
+
+  private getWispMeleeRange() {
+    return WISP_MELEE_RANGE * this.gameplayScale;
   }
 
   private drawNullPointer(enemy: EnemyActor, state: NullWraithState) {

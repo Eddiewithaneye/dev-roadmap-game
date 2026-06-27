@@ -2,6 +2,7 @@ import type { PlayerCardProps } from "./types";
 
 export function PlayerCard({
   health,
+  density = "default",
   level,
   maxHealth,
   playerName = "Codebound Hero",
@@ -11,27 +12,54 @@ export function PlayerCard({
 }: PlayerCardProps) {
   const healthPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const xpPercent = Math.max(0, Math.min(100, (xp / xpGoal) * 100));
+  const isCompact = density === "compact";
 
   return (
-    <div className="flex h-28 w-64 items-stretch gap-3 border-2 border-cyan-300/30 bg-black/70 p-2">
-      <div className="flex h-full w-20 flex-col items-center justify-center border-2 border-cyan-300/40 bg-[#102432] text-cyan-100">
-        <div className="text-2xl font-bold">CB</div>
-        <div className="mt-1 text-[10px] font-bold uppercase text-cyan-300">
+    <div
+      className={`flex items-stretch border-2 border-cyan-300/30 bg-black/70 ${
+        isCompact ? "h-14 w-36 gap-1 p-1" : "h-28 w-64 gap-3 p-2"
+      }`}
+    >
+      <div
+        className={`flex h-full flex-col items-center justify-center border-2 border-cyan-300/40 bg-[#102432] text-cyan-100 ${
+          isCompact ? "w-10" : "w-20"
+        }`}
+      >
+        <div className={isCompact ? "text-sm font-bold" : "text-2xl font-bold"}>
+          CB
+        </div>
+        <div
+          className={`font-bold uppercase text-cyan-300 ${
+            isCompact ? "mt-0 text-[7px]" : "mt-1 text-[10px]"
+          }`}
+        >
           Hero
         </div>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-end">
-        <div className="mb-2 truncate text-sm font-bold text-cyan-100">
+        <div
+          className={`truncate font-bold text-cyan-100 ${
+            isCompact ? "mb-1 text-[9px]" : "mb-2 text-sm"
+          }`}
+        >
           {playerName}
         </div>
 
-        <div className="relative h-5 overflow-hidden border border-green-200/30 bg-[#061217]">
+        <div
+          className={`relative overflow-hidden border border-green-200/30 bg-[#061217] ${
+            isCompact ? "h-3" : "h-5"
+          }`}
+        >
           <div
             className="absolute inset-y-0 left-0 bg-green-400"
             style={{ width: `${healthPercent}%` }}
           />
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
+          <div
+            className={`absolute inset-0 flex items-center justify-center font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.8)] ${
+              isCompact ? "text-[8px]" : "text-xs"
+            }`}
+          >
             {health} / {maxHealth} HP
           </div>
         </div>

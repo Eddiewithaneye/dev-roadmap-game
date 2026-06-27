@@ -9,9 +9,11 @@ type SpawnWave = EnemySpawnRequest & {
 };
 
 const FIRST_LEVEL_WAVES: SpawnWave[] = [
-  { atMs: 1000, enemyId: "syntax-gremlin", count: 1 },
+  { atMs: 1000, enemyId: "spacing-wisp", count: 1 },
   { atMs: 9000, enemyId: "syntax-gremlin", count: 2 },
-  { atMs: 18000, enemyId: "spacing-wisp", count: 2 },
+  { atMs: 18000, enemyId: "spacing-wisp", count: 1 },
+  { atMs: 18000, enemyId: "syntax-gremlin", count: 1 },
+  { atMs: 30000, enemyId: "spacing-wisp", count: 2 },
   { atMs: 30000, enemyId: "syntax-gremlin", count: 2 },
   { atMs: 43000, enemyId: "spacing-wisp", count: 2 },
   { atMs: 56000, enemyId: "syntax-gremlin", count: 3 },

@@ -63,7 +63,10 @@ export function GameCanvas() {
   }, []);
 
   return (
-    <div className="h-full w-full overflow-hidden bg-red-50">
+    <div
+      className="h-full w-full overflow-hidden bg-[#071018] bg-cover bg-center"
+      style={{ backgroundImage: "url('/backgrounds/code-campus.png')" }}
+    >
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );

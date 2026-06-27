@@ -4,7 +4,11 @@ import { useGameStore } from "@/components/game/stores/useGameStore";
 import { PLAYER_MOVEMENT_TUNING } from "@/game/config/player";
 import type { ArenaRect } from "@/game/domain/types";
 import type { PlayerActor } from "@/game/phaser/objects/PlayerActor";
-import { getDepthScale, getMovementSpeedScale } from "@/game/phaser/worldDepth";
+import {
+  getDepthScale,
+  getMovementSpeedScale,
+  type DepthScaleProfile,
+} from "@/game/phaser/worldDepth";
 
 type MovementKeys = {
   left: Phaser.Input.Keyboard.Key;
@@ -17,16 +21,46 @@ type MovementKeys = {
   s: Phaser.Input.Keyboard.Key;
 };
 
+export type MovementVector = {
+  x: number;
+  y: number;
+};
+
+export type MovementInputSource = {
+  getMovementVector: () => MovementVector;
+};
+
+class KeyboardMovementInput implements MovementInputSource {
+  constructor(private readonly keys?: MovementKeys) {}
+
+  getMovementVector() {
+    if (!this.keys) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x:
+        (this.keys.right.isDown || this.keys.d.isDown ? 1 : 0) -
+        (this.keys.left.isDown || this.keys.a.isDown ? 1 : 0),
+      y:
+        (this.keys.down.isDown || this.keys.s.isDown ? 1 : 0) -
+        (this.keys.up.isDown || this.keys.w.isDown ? 1 : 0),
+    };
+  }
+}
+
 export class PlayerMovementSystem {
-  private readonly keys?: MovementKeys;
+  private readonly inputSources: MovementInputSource[];
   private lastPublishedSpeed = -1;
 
   constructor(
     scene: Phaser.Scene,
     private readonly player: PlayerActor,
     private readonly walkableArea: ArenaRect,
+    private readonly gameplayScale = 1,
+    private readonly depthScaleProfile?: DepthScaleProfile,
   ) {
-    this.keys = scene.input.keyboard?.addKeys({
+    const keys = scene.input.keyboard?.addKeys({
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
       up: Phaser.Input.Keyboard.KeyCodes.UP,
@@ -36,19 +70,15 @@ export class PlayerMovementSystem {
       w: Phaser.Input.Keyboard.KeyCodes.W,
       s: Phaser.Input.Keyboard.KeyCodes.S,
     }) as MovementKeys | undefined;
+    this.inputSources = [new KeyboardMovementInput(keys)];
+  }
+
+  addInputSource(inputSource: MovementInputSource) {
+    this.inputSources.push(inputSource);
   }
 
   update(deltaMs: number) {
-    if (!this.keys) {
-      return;
-    }
-
-    const x =
-      (this.keys.right.isDown || this.keys.d.isDown ? 1 : 0) -
-      (this.keys.left.isDown || this.keys.a.isDown ? 1 : 0);
-    const y =
-      (this.keys.down.isDown || this.keys.s.isDown ? 1 : 0) -
-      (this.keys.up.isDown || this.keys.w.isDown ? 1 : 0);
+    const { x, y } = this.getMovementVector();
     const length = Math.hypot(x, y);
 
     if (length === 0) {
@@ -60,8 +90,13 @@ export class PlayerMovementSystem {
       this.player.container.y,
       this.walkableArea,
     );
+    const movementSpeedMultiplier =
+      useGameStore.getState().movementSpeedMultiplier;
     const currentMovementSpeed =
-      PLAYER_MOVEMENT_TUNING.speedPxPerSecond * speedScale;
+      PLAYER_MOVEMENT_TUNING.speedPxPerSecond *
+      this.gameplayScale *
+      speedScale *
+      movementSpeedMultiplier;
     const distance = currentMovementSpeed * Math.min(deltaMs, 50) * 0.001;
     const nextX = Phaser.Math.Clamp(
       this.player.container.x + (x / length) * distance,
@@ -76,11 +111,37 @@ export class PlayerMovementSystem {
 
     this.publishMovementSpeed(currentMovementSpeed);
     this.player.setPosition(nextX, nextY);
-    this.player.setDepthScale(getDepthScale(nextY, this.walkableArea));
+    this.player.setDepthScale(
+      getDepthScale(nextY, this.walkableArea, this.depthScaleProfile),
+    );
 
     if (x !== 0) {
       this.player.setFacing(x > 0 ? 1 : -1);
     }
+  }
+
+  private getMovementVector() {
+    const combinedVector = this.inputSources.reduce(
+      (vector, inputSource) => {
+        const inputVector = inputSource.getMovementVector();
+
+        return {
+          x: vector.x + inputVector.x,
+          y: vector.y + inputVector.y,
+        };
+      },
+      { x: 0, y: 0 },
+    );
+    const length = Math.hypot(combinedVector.x, combinedVector.y);
+
+    if (length <= 1) {
+      return combinedVector;
+    }
+
+    return {
+      x: combinedVector.x / length,
+      y: combinedVector.y / length,
+    };
   }
 
   private publishMovementSpeed(speed: number) {

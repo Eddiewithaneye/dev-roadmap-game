@@ -34,38 +34,72 @@ export class WeaponSystem {
     damage: number,
     range: number,
     screenShakeIntensity: ScreenShakeIntensity,
+    options: {
+      attackId: string | null;
+      projectileCount: number;
+      pierce: number;
+      bounceCount: number;
+    },
   ) {
     if (effect === "straight-shot") {
-      this.fireStraightShot(damage, range, screenShakeIntensity);
+      this.fireStraightShot(damage, range, screenShakeIntensity, options);
       return;
     }
 
-    this.fireChainSpark(damage, screenShakeIntensity);
+    this.fireChainSpark(damage, screenShakeIntensity, options);
   }
 
   private fireChainSpark(
     damage: number,
     screenShakeIntensity: ScreenShakeIntensity,
+    options: {
+      attackId: string | null;
+      projectileCount: number;
+      bounceCount: number;
+    },
   ) {
-    const target = this.getClosestLiveEnemy();
+    const initialTargets = this.getClosestLiveEnemies(
+      Math.max(1, options.projectileCount),
+    );
 
-    if (!target) {
+    if (initialTargets.length === 0) {
       return;
     }
 
-    WeaponEffects.spark(
-      this.scene,
-      this.player.getCastOrigin(),
-      target.container,
-      { scale: this.player.getDepthScale() },
-    );
-    this.applyHit(target, damage, screenShakeIntensity);
+    initialTargets.forEach((initialTarget, projectileIndex) => {
+      const chain = this.getBounceChain(initialTarget, options.bounceCount);
+
+      chain.forEach((target, bounceIndex) => {
+        this.scene.time.delayedCall(projectileIndex * 55 + bounceIndex * 115, () => {
+          const previousTarget = chain[bounceIndex - 1];
+          const from = previousTarget
+            ? {
+                x: previousTarget.container.x,
+                y: previousTarget.container.y - 48 * previousTarget.container.scaleY,
+              }
+            : this.player.getCastOrigin();
+
+          WeaponEffects.spark(
+            this.scene,
+            from,
+            target.container,
+            { scale: this.player.getDepthScale() },
+          );
+          this.applyHit(target, damage, screenShakeIntensity, options.attackId);
+        });
+      });
+    });
   }
 
   private fireStraightShot(
     damage: number,
     range: number,
     screenShakeIntensity: ScreenShakeIntensity,
+    options: {
+      attackId: string | null;
+      projectileCount: number;
+      pierce: number;
+    },
   ) {
     const direction = this.player.getFacing();
     const scale = this.player.getDepthScale();
@@ -73,31 +107,50 @@ export class WeaponSystem {
       range * STRAIGHT_SHOT_RANGE_UNIT_PX,
       this.scene.scale.width * 0.92,
     );
-    const hitbox = getStraightShotHitbox(
-      this.player.container,
-      direction,
-      rangePixels,
-      scale,
-    );
-    const hits = this.enemies
-      .filter((enemy) => this.isEnemyInStraightShot(enemy, hitbox))
-      .map((enemy) => ({
-        enemy,
-        distance: getDistanceToEnemy(enemy, direction, hitbox),
-      }))
-      .sort((a, b) => a.distance - b.distance);
-
-    WeaponEffects.straightShot(
-      this.scene,
-      this.player.container,
-      direction,
-      rangePixels,
-      {
-        debugHitbox: hitbox,
+    const projectileCount = Math.max(1, options.projectileCount);
+    const projectileOffsets = getProjectileLaneOffsets(projectileCount);
+    const hits = projectileOffsets.flatMap((laneOffset) => {
+      const hitbox = getStraightShotHitbox(
+        this.player.container,
+        direction,
+        rangePixels,
         scale,
-        showDebug: this.isDevMode,
-      },
-    );
+        laneOffset * scale,
+      );
+
+      return this.enemies
+        .filter((enemy) => this.isEnemyInStraightShot(enemy, hitbox))
+        .map((enemy) => ({
+          enemy,
+          distance: getDistanceToEnemy(enemy, direction, hitbox),
+          hitbox,
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 1 + options.pierce);
+    });
+
+    projectileOffsets.forEach((laneOffset) => {
+      const hitbox = getStraightShotHitbox(
+        this.player.container,
+        direction,
+        rangePixels,
+        scale,
+        laneOffset * scale,
+      );
+
+      WeaponEffects.straightShot(
+        this.scene,
+        this.player.container,
+        direction,
+        rangePixels,
+        {
+          debugHitbox: hitbox,
+          laneOffset: laneOffset * scale,
+          scale,
+          showDebug: this.isDevMode,
+        },
+      );
+    });
 
     if (this.isDevMode) {
       this.enemies
@@ -114,7 +167,7 @@ export class WeaponSystem {
       );
 
       this.scene.time.delayedCall(hitDelay, () => {
-        this.applyHit(enemy, damage, screenShakeIntensity);
+        this.applyHit(enemy, damage, screenShakeIntensity, options.attackId);
       });
     });
   }
@@ -133,7 +186,7 @@ export class WeaponSystem {
     );
   }
 
-  private getClosestLiveEnemy() {
+  private getClosestLiveEnemies(count: number) {
     return this.enemies
       .filter((enemy) => !enemy.isDefeated())
       .map((enemy) => ({
@@ -145,6 +198,46 @@ export class WeaponSystem {
           enemy.container.y,
         ),
       }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, count)
+      .map(({ enemy }) => enemy);
+  }
+
+  private getBounceChain(initialTarget: EnemyActor, bounceCount: number) {
+    const chain = [initialTarget];
+
+    while (chain.length < 1 + bounceCount) {
+      const previousTarget = chain[chain.length - 1];
+      const nextTarget = this.getClosestLiveEnemyFrom(
+        previousTarget.container,
+        new Set(chain),
+      );
+
+      if (!nextTarget) {
+        break;
+      }
+
+      chain.push(nextTarget);
+    }
+
+    return chain;
+  }
+
+  private getClosestLiveEnemyFrom(
+    position: { x: number; y: number },
+    excludedEnemies: Set<EnemyActor>,
+  ) {
+    return this.enemies
+      .filter((enemy) => !enemy.isDefeated() && !excludedEnemies.has(enemy))
+      .map((enemy) => ({
+        enemy,
+        distance: Phaser.Math.Distance.Between(
+          position.x,
+          position.y,
+          enemy.container.x,
+          enemy.container.y,
+        ),
+      }))
       .sort((a, b) => a.distance - b.distance)[0]?.enemy;
   }
 
@@ -152,8 +245,9 @@ export class WeaponSystem {
     enemy: EnemyActor,
     damage: number,
     screenShakeIntensity: ScreenShakeIntensity,
+    attackId: string | null,
   ) {
-    if (!enemy.applyDamage(this.scene, damage)) {
+    if (!enemy.applyDamage(this.scene, damage, attackId)) {
       return;
     }
 
@@ -187,10 +281,11 @@ function getStraightShotHitbox(
   direction: -1 | 1,
   rangePixels: number,
   scale: number,
+  laneOffset: number,
 ) {
   const scaledWidth = STRAIGHT_SHOT_WIDTH * scale;
   const startX = player.x + direction * 34 * scale;
-  const top = player.y - 56 * scale - scaledWidth / 2;
+  const top = player.y - 56 * scale - scaledWidth / 2 + laneOffset;
 
   return new Phaser.Geom.Rectangle(
     direction === 1 ? startX : startX - rangePixels,
@@ -198,6 +293,17 @@ function getStraightShotHitbox(
     rangePixels,
     scaledWidth,
   );
+}
+
+function getProjectileLaneOffsets(projectileCount: number) {
+  if (projectileCount <= 1) {
+    return [0];
+  }
+
+  const spacing = 34;
+  const start = -((projectileCount - 1) * spacing) / 2;
+
+  return Array.from({ length: projectileCount }, (_, index) => start + index * spacing);
 }
 
 function getDistanceToEnemy(

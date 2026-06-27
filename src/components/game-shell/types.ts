@@ -5,17 +5,20 @@ import type { Weapon } from "@/types/weapon";
 export type WeaponPanelMode = "player" | "dev";
 export type DevToolsPosition = "top" | "left" | "right";
 export type WeaponSlot = "language" | "sql" | "locked3" | "locked4";
+export type InputMode = "desktop" | "touch-landscape" | "touch-portrait";
 
 export type ResourceStatProps = {
   icon: string;
   label: string;
   value: number;
+  density?: "default" | "compact";
 };
 
 export type PlayerCardProps = {
   health: number;
   level: number;
   maxHealth: number;
+  density?: "default" | "compact";
   playerName?: string;
   showExperience?: boolean;
   xp?: number;
@@ -30,6 +33,7 @@ export type AbilitySlotProps = {
   locked?: boolean;
   active?: boolean;
   cooldownProgress?: number;
+  size?: "default" | "mobile";
   onClick?: () => void;
   onKeyDown?: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
   onInfoClick?: () => void;
@@ -39,6 +43,7 @@ export type XpBarProps = {
   level: number;
   xp: number;
   xpGoal: number;
+  density?: "default" | "compact";
 };
 
 export type PrimaryTarget = Enemy;
@@ -62,6 +67,9 @@ export type DevControlsProps = {
 
 export type GameHudProps = {
   runTimeLabel: string;
+  isWaterfallMode: boolean;
+  isEntryTransitionActive: boolean;
+  inputMode: InputMode;
   primaryTarget: PrimaryTarget | null;
   selectedSlot: WeaponSlot;
   weaponCooldownProgressBySlot: Partial<Record<WeaponSlot, number>>;

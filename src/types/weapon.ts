@@ -21,4 +21,7 @@ export type Weapon = {
   screenShakeIntensity: ScreenShakeIntensity;
   visualEffect?: string;
   imageSrc?: string;
+  projectileCount?: number;
+  pierce?: number;
+  bounceCount?: number;
 };

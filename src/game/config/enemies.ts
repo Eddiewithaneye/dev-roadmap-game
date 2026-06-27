@@ -43,7 +43,7 @@ export const ENEMIES = [
     name: "Syntax Gremlin",
     category: "Bug",
     health: 25,
-    speed: 110,
+    speed: 80,
     damage: 5,
     xpReward: 15,
   },

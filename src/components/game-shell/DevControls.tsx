@@ -49,7 +49,11 @@ export function DevControls({
 
   return (
     <section
-      className={`pointer-events-auto absolute z-20 max-w-[min(760px,calc(100vw-48px))] border border-cyan-300/30 bg-black/70 p-3 shadow-[0_0_32px_rgba(8,145,178,0.16)] ${panelPositionClass[position]}`}
+      className={`pointer-events-auto absolute z-20 max-w-[min(760px,calc(100vw-48px))] overflow-y-auto border border-cyan-300/30 bg-black/70 p-3 shadow-[0_0_32px_rgba(8,145,178,0.16)] ${panelPositionClass[position]}`}
+      style={{
+        maxHeight:
+          position === "right" ? "calc(100vh - 14rem)" : "calc(100vh - 7rem)",
+      }}
     >
       <div className="mb-3 flex items-center justify-between gap-4">
         <div>
@@ -103,7 +107,7 @@ export function DevControls({
           className={actionButtonClass}
           onClick={onRunTimerPlay}
           disabled={!isRunTimerPaused}
-          aria-label="Play level timer"
+          aria-label="Play sprint timer"
         >
           Play
         </button>
@@ -112,7 +116,7 @@ export function DevControls({
           className={actionButtonClass}
           onClick={onRunTimerPause}
           disabled={isRunTimerPaused}
-          aria-label="Pause level timer"
+          aria-label="Pause sprint timer"
         >
           Pause
         </button>
@@ -120,7 +124,7 @@ export function DevControls({
           type="button"
           className={actionButtonClass}
           onClick={onRunTimerRestart}
-          aria-label="Restart level timer"
+          aria-label="Restart sprint timer"
         >
           Refresh
         </button>
