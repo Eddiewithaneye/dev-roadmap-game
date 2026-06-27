@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { useRef } from "react";
 import type { AbilitySlotProps } from "./types";
 
 export function AbilitySlot({
@@ -14,6 +15,7 @@ export function AbilitySlot({
   onKeyDown,
   onInfoClick,
 }: AbilitySlotProps) {
+  const lastPointerActivationAtRef = useRef(0);
   const clampedCooldownProgress = Math.min(1, Math.max(0, cooldownProgress));
   const cooldownDegrees = clampedCooldownProgress * 360;
   const cooldownOverlayColor = "rgba(224, 242, 254, 0.32)";
@@ -45,11 +47,30 @@ export function AbilitySlot({
 
       <button
         type="button"
-        onClick={onClick}
+        onClick={() => {
+          if (
+            isMobile &&
+            Date.now() - lastPointerActivationAtRef.current < 700
+          ) {
+            return;
+          }
+
+          onClick?.();
+        }}
+        onPointerDown={(event) => {
+          if (!isMobile || event.pointerType === "mouse") {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          lastPointerActivationAtRef.current = Date.now();
+          onClick?.();
+        }}
         onKeyDown={onKeyDown}
         disabled={locked}
         tabIndex={onClick ? 0 : -1}
-        className={`relative flex h-full w-full flex-col items-center justify-center overflow-hidden transition ${
+        className={`relative flex h-full w-full touch-none flex-col items-center justify-center overflow-hidden transition ${
           locked
             ? "cursor-not-allowed"
             : onClick

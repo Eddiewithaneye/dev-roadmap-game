@@ -129,6 +129,8 @@ export class EnemyActor {
     }
 
     this.defeated = true;
+    const baseReward = this.definition.xpReward / 1.2;
+    const variance = Phaser.Math.FloatBetween(0.75, 1.35);
 
     window.dispatchEvent(
       new CustomEvent("codebound:enemy-defeated",{
@@ -137,8 +139,8 @@ export class EnemyActor {
           name: this.definition.name,
           xpReward: this.definition.xpReward,
           codeFragmentReward: Math.max(
-            5,
-            Math.round(this.definition.xpReward / 2),
+            8,
+            Math.round(baseReward * variance),
           ),
           x: this.container.x,
           y: this.container.y,

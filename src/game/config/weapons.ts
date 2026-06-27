@@ -27,7 +27,7 @@ export const sqlBowWeapon: Weapon = {
   weaponName: "Querystring Bow",
   description:
     "A simple test weapon that fires one straight query arrow down the current lane.",
-  damage: 8,
+  damage: 10,
   cooldown: 1.4,
   range: 18,
   icon: "SQL",

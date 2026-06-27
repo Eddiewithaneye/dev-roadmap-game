@@ -127,13 +127,6 @@ export function GameHud({
           ) : null}
         </div>
 
-        {isWaterfallMode ? (
-          <div className="absolute left-1/2 top-28 w-[min(680px,calc(100vw-32px))] -translate-x-1/2 border border-amber-300/40 bg-black/75 px-4 py-3 text-center text-sm font-bold leading-6 text-amber-100 shadow-[0_0_24px_rgba(251,191,36,0.16)]">
-            You have switched to the waterfall method. You will never ship code,
-            and you will be here forever. This is the IRL Endless Mode.
-          </div>
-        ) : null}
-
         <div
           className={`flex items-center justify-end ${
             isTouchLandscape ? "w-[38%] px-2 py-1" : "w-[38%] px-6 py-3"

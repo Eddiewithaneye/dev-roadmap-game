@@ -18,6 +18,7 @@ import type {
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
 import { LevelUpModal } from "./LevelUpModal";
+import { MobileFullscreenPrompt } from "./MobileFullscreenPrompt";
 import { RotateDeviceOverlay } from "./RotateDeviceOverlay";
 import { SprintRetroModal } from "./SprintRetroModal";
 import { useInputMode } from "./useInputMode";
@@ -32,6 +33,14 @@ import { useGameStore } from "@/components/game/stores/useGameStore";
 type GameShellProps = {
   children: ReactNode;
   initialMode?: SprintMode;
+};
+
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+};
+
+type FullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
 };
 
 const WEAPON_SLOTS: WeaponSlot[] = ["language", "sql", "locked3", "locked4"];
@@ -111,6 +120,10 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
     useState(false);
   const [isEntryLogoDocked, setIsEntryLogoDocked] = useState(false);
   const [isEntryLogoReady, setIsEntryLogoReady] = useState(false);
+  const [canRequestFullscreen, setCanRequestFullscreen] = useState(false);
+  const [isFullscreenActive, setIsFullscreenActive] = useState(false);
+  const [isFullscreenPromptDismissed, setIsFullscreenPromptDismissed] =
+    useState(false);
   const inputMode = useInputMode();
   
 
@@ -161,6 +174,17 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
     [elapsedRunSeconds, sprintOutcome, sprintStats],
   );
   const isTouchLandscape = inputMode === "touch-landscape";
+  const shouldOfferFullscreen =
+    inputMode !== "desktop" &&
+    canRequestFullscreen &&
+    !isFullscreenActive &&
+    !isFullscreenPromptDismissed;
+  const shouldShowMobileFullscreenPrompt =
+    inputMode === "touch-landscape" &&
+    shouldOfferFullscreen &&
+    !isEntryTransitionVisible &&
+    sprintOutcome === "running" &&
+    !isLevelUpModalOpen;
 
   useEffect(() => {
     resetRun();
@@ -186,6 +210,38 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    function updateFullscreenState() {
+      setCanRequestFullscreen(getCanRequestFullscreen());
+      setIsFullscreenActive(Boolean(getFullscreenElement()));
+    }
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        updateFullscreenState,
+      );
+    };
+  }, []);
+
+  const requestFullscreen = useCallback(() => {
+    void requestDocumentFullscreen()
+      .catch(() => undefined)
+      .finally(() => {
+        setIsFullscreenPromptDismissed(true);
+        setIsFullscreenActive(Boolean(getFullscreenElement()));
+      });
+  }, []);
+
+  const skipFullscreenPrompt = useCallback(() => {
+    setIsFullscreenPromptDismissed(true);
   }, []);
 
   useEffect(() => {
@@ -443,7 +499,7 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
       return;
     }
 
-    if (inputMode === "touch-portrait") {
+    if (inputMode === "touch-portrait" || shouldShowMobileFullscreenPrompt) {
       const pauseTimeout = window.setTimeout(pauseSprint, 0);
 
       return () => window.clearTimeout(pauseTimeout);
@@ -451,6 +507,7 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
 
     if (
       inputMode === "touch-landscape" &&
+      !shouldShowMobileFullscreenPrompt &&
       isRunTimerPaused &&
       !isLevelUpModalOpen
     ) {
@@ -465,6 +522,7 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
     isRunTimerPaused,
     pauseSprint,
     resumeSprint,
+    shouldShowMobileFullscreenPrompt,
     sprintOutcome,
   ]);
 
@@ -814,7 +872,23 @@ export function GameShell({ children, initialMode = "sprint" }: GameShellProps) 
         weaponCooldownProgressBySlot={weaponCooldownProgressBySlot}
       />
 
-      {inputMode === "touch-portrait" ? <RotateDeviceOverlay /> : null}
+      {inputMode === "touch-portrait" ? (
+        <RotateDeviceOverlay
+          canRequestFullscreen={canRequestFullscreen}
+          isFullscreenActive={isFullscreenActive}
+          onRequestFullscreen={requestFullscreen}
+          onSkipFullscreen={skipFullscreenPrompt}
+          showFullscreenPrompt={shouldOfferFullscreen}
+        />
+      ) : null}
+
+      {shouldShowMobileFullscreenPrompt ? (
+        <MobileFullscreenPrompt
+          canRequestFullscreen={canRequestFullscreen}
+          onRequestFullscreen={requestFullscreen}
+          onSkipFullscreen={skipFullscreenPrompt}
+        />
+      ) : null}
 
       {isEntryTransitionVisible ? (
         <div
@@ -922,6 +996,44 @@ function getTunableWeaponSlot(slot: WeaponSlot): TunableWeaponSlot | null {
   }
 
   return null;
+}
+
+function getFullscreenElement() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const fullscreenDocument = document as FullscreenDocument;
+
+  return (
+    document.fullscreenElement ??
+    fullscreenDocument.webkitFullscreenElement ??
+    null
+  );
+}
+
+function getCanRequestFullscreen() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const fullscreenElement = document.documentElement as FullscreenElement;
+
+  return Boolean(
+    fullscreenElement.requestFullscreen ??
+      fullscreenElement.webkitRequestFullscreen,
+  );
+}
+
+async function requestDocumentFullscreen() {
+  const fullscreenElement = document.documentElement as FullscreenElement;
+
+  if (fullscreenElement.requestFullscreen) {
+    await fullscreenElement.requestFullscreen();
+    return;
+  }
+
+  await fullscreenElement.webkitRequestFullscreen?.();
 }
 
 function getSprintRetroSummary(

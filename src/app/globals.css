@@ -200,6 +200,78 @@ html[data-home-transition="active"] body {
     animation: game-entry-loading-mobile-fade 300ms ease-out forwards;
   }
 
+  .sprint-retro-modal {
+    max-height: calc(100vh - 18px);
+    width: min(560px, calc(100vw - 24px));
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .sprint-retro-eyebrow {
+    font-size: 0.7rem;
+    line-height: 1rem;
+  }
+
+  .sprint-retro-title {
+    margin-top: 0.25rem;
+    font-size: 1.35rem;
+    line-height: 1.55rem;
+  }
+
+  .sprint-retro-panel {
+    margin-top: 0.65rem;
+    padding: 0.65rem;
+  }
+
+  .sprint-retro-panel-title {
+    font-size: 0.7rem;
+    line-height: 1rem;
+  }
+
+  .sprint-retro-stats {
+    margin-top: 0.55rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .sprint-retro-stat {
+    padding: 0.45rem;
+  }
+
+  .sprint-retro-stat-value {
+    font-size: 0.95rem;
+    line-height: 1.15rem;
+  }
+
+  .sprint-retro-stat-label {
+    margin-top: 0.1rem;
+    font-size: 0.55rem;
+    line-height: 0.8rem;
+  }
+
+  .sprint-retro-accomplishments {
+    margin-top: 0.5rem;
+    gap: 0.35rem;
+  }
+
+  .sprint-retro-accomplishments > div {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.72rem;
+    line-height: 1rem;
+  }
+
+  .sprint-retro-actions {
+    margin-top: 0.65rem;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .sprint-retro-action {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
   @keyframes game-entry-logo-dock {
     from {
       left: 50%;
