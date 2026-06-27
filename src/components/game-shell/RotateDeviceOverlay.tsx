@@ -1,19 +1,19 @@
 "use client";
 
 type RotateDeviceOverlayProps = {
-  canRequestFullscreen: boolean;
-  isFullscreenActive: boolean;
-  onRequestFullscreen: () => void;
-  onSkipFullscreen: () => void;
-  showFullscreenPrompt: boolean;
+  canRequestFullscreen?: boolean;
+  isFullscreenActive?: boolean;
+  onRequestFullscreen?: () => void;
+  onSkipFullscreen?: () => void;
+  showFullscreenPrompt?: boolean;
 };
 
 export function RotateDeviceOverlay({
-  canRequestFullscreen,
-  isFullscreenActive,
+  canRequestFullscreen = false,
+  isFullscreenActive = false,
   onRequestFullscreen,
   onSkipFullscreen,
-  showFullscreenPrompt,
+  showFullscreenPrompt = false,
 }: RotateDeviceOverlayProps) {
   return (
     <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-[#071018]/94 px-6 text-center text-white">

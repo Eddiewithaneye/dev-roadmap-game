@@ -2,9 +2,21 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { MobileFullscreenPrompt } from "@/components/game-shell/MobileFullscreenPrompt";
+import { RotateDeviceOverlay } from "@/components/game-shell/RotateDeviceOverlay";
+import { useInputMode } from "@/components/game-shell/useInputMode";
 
 type ModeKey = "sprint" | "waterfall";
+
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+};
+
+type FullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
 
 const MODES: Array<{
   key: ModeKey;
@@ -43,6 +55,18 @@ const MODES: Array<{
 export function ModeDoorSelect() {
   const router = useRouter();
   const [selectedMode, setSelectedMode] = useState<ModeKey | null>(null);
+  const [canRequestFullscreen, setCanRequestFullscreen] = useState(false);
+  const [isFullscreenActive, setIsFullscreenActive] = useState(false);
+  const [isFullscreenPromptDismissed, setIsFullscreenPromptDismissed] =
+    useState(false);
+  const inputMode = useInputMode();
+  const shouldOfferFullscreen =
+    inputMode !== "desktop" &&
+    canRequestFullscreen &&
+    !isFullscreenActive &&
+    !isFullscreenPromptDismissed;
+  const shouldShowLandscapeFullscreenPrompt =
+    inputMode === "touch-landscape" && shouldOfferFullscreen && !selectedMode;
 
   useEffect(() => {
     if (selectedMode) {
@@ -52,6 +76,38 @@ export function ModeDoorSelect() {
 
     delete document.documentElement.dataset.homeTransition;
   }, [selectedMode]);
+
+  useEffect(() => {
+    function updateFullscreenState() {
+      setCanRequestFullscreen(getCanRequestFullscreen());
+      setIsFullscreenActive(Boolean(getFullscreenElement()));
+    }
+
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        updateFullscreenState,
+      );
+    };
+  }, []);
+
+  const requestFullscreen = useCallback(() => {
+    void requestDocumentFullscreen()
+      .catch(() => undefined)
+      .finally(() => {
+        setIsFullscreenPromptDismissed(true);
+        setIsFullscreenActive(Boolean(getFullscreenElement()));
+      });
+  }, []);
+
+  const skipFullscreenPrompt = useCallback(() => {
+    setIsFullscreenPromptDismissed(true);
+  }, []);
 
   function selectMode(mode: (typeof MODES)[number]) {
     if (selectedMode) {
@@ -175,6 +231,62 @@ export function ModeDoorSelect() {
           </div>
         </div>
       ) : null}
+
+      {!selectedMode && inputMode === "touch-portrait" ? (
+        <RotateDeviceOverlay
+          canRequestFullscreen={canRequestFullscreen}
+          isFullscreenActive={isFullscreenActive}
+          onRequestFullscreen={requestFullscreen}
+          onSkipFullscreen={skipFullscreenPrompt}
+          showFullscreenPrompt={shouldOfferFullscreen}
+        />
+      ) : null}
+
+      {shouldShowLandscapeFullscreenPrompt ? (
+        <MobileFullscreenPrompt
+          canRequestFullscreen={canRequestFullscreen}
+          onRequestFullscreen={requestFullscreen}
+          onSkipFullscreen={skipFullscreenPrompt}
+        />
+      ) : null}
     </section>
   );
+}
+
+function getFullscreenElement() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const fullscreenDocument = document as FullscreenDocument;
+
+  return (
+    document.fullscreenElement ??
+    fullscreenDocument.webkitFullscreenElement ??
+    null
+  );
+}
+
+function getCanRequestFullscreen() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const fullscreenElement = document.documentElement as FullscreenElement;
+
+  return Boolean(
+    fullscreenElement.requestFullscreen ??
+      fullscreenElement.webkitRequestFullscreen,
+  );
+}
+
+async function requestDocumentFullscreen() {
+  const fullscreenElement = document.documentElement as FullscreenElement;
+
+  if (fullscreenElement.requestFullscreen) {
+    await fullscreenElement.requestFullscreen();
+    return;
+  }
+
+  await fullscreenElement.webkitRequestFullscreen?.();
 }
