@@ -9,13 +9,16 @@ export const javascriptLanguageWeapon: Weapon = {
   weaponName: javascript.manifestation,
   description:
     "A fast fantasy-tech rod that launches electric bolts and chain-style code arcs.",
-  damage: 50,
+  damage: 20,
   cooldown: javascript.stats.cooldown,
   range: javascript.stats.range,
   icon: "JS",
   effect: "chain-spark",
+  screenShakeIntensity: "light",
   visualEffect: "Fast electric bolts and chained code spark effects.",
   imageSrc: "/images/Event_Spark_Wand.png",
+  projectileCount: 1,
+  bounceCount: 0,
 };
 
 export const sqlBowWeapon: Weapon = {
@@ -24,14 +27,17 @@ export const sqlBowWeapon: Weapon = {
   weaponName: "Querystring Bow",
   description:
     "A simple test weapon that fires one straight query arrow down the current lane.",
-  damage: 18,
+  damage: 10,
   cooldown: 1.4,
   range: 18,
   icon: "SQL",
   effect: "straight-shot",
+  screenShakeIntensity: "none",
   visualEffect:
     "Straight-line arrow projectile with lane-based hit detection.",
   imageSrc: "/images/sql-bow-placeholder.svg",
+  projectileCount: 1,
+  pierce: 1,
 };
 
 export const gameWeapons: Weapon[] = [javascriptLanguageWeapon, sqlBowWeapon];

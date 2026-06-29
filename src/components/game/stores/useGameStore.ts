@@ -3,6 +3,7 @@ import { createPlayerSlice, type PlayerSlice } from './playerSlice';
 import { createProgressionSlice, type ProgressionSlice } from './progressionSlice';
 import { createResourceSlice, type ResourceSlice } from './resourceSlice';
 import { createRunSlice, type RunSlice } from './runSlice';
+import { createWeaponSlice, type WeaponSlice } from './weaponSlice';
 // constants
 const INITIAL_MAX_ENEMIES = 10;
 const INITIAL_DAMAGE = 0;
@@ -18,7 +19,7 @@ type GameSlice = {
     defeatEnemy: () => void,
 }
 
-export type GameStore = PlayerSlice & GameSlice & ProgressionSlice & ResourceSlice & RunSlice
+export type GameStore = PlayerSlice & GameSlice & ProgressionSlice & ResourceSlice & RunSlice & WeaponSlice
 
 // stores (if this gets to many stores, create modulas within the file)
 
@@ -27,6 +28,7 @@ export const useGameStore = create<GameStore>()((set,get,store) => ({
     ...createProgressionSlice(set,get,store),
     ...createResourceSlice(set,get,store),
     ...createRunSlice(set,get,store),
+    ...createWeaponSlice(set,get,store),
     damage: INITIAL_DAMAGE,
     maxEnemies: INITIAL_MAX_ENEMIES,
     enemies: INITIAL_ENEMIES,

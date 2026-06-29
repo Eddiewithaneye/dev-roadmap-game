@@ -1,105 +1,262 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { ENEMIES } from "@/game/config/enemies";
 import { RUN_TUNING } from "@/game/config/run";
 import {
   canAttack,
-  damageEnemy,
-  getCooldownRemaining,
   getNextReadyTime,
   spawnEnemy,
 } from "@/game/domain/combat";
-import {
-  javascriptLanguageWeapon,
-  sqlBowWeapon,
-} from "@/game/config/weapons";
-import type { Weapon } from "@/types/weapon";
-
+import type {
+  RunStatKey,
+  SprintMode,
+  SprintRetroSummary,
+} from "@/game/domain/sprint";
 import { DevControls } from "./DevControls";
 import { GameHud } from "./GameHud";
+import { LevelUpModal } from "./LevelUpModal";
+import { RotateDeviceOverlay } from "./RotateDeviceOverlay";
+import { SprintRetroModal } from "./SprintRetroModal";
+import { useInputMode } from "./useInputMode";
 import { WeaponPanel } from "./WeaponPanel";
-import type { DevToolsPosition, WeaponSlot } from "./types";
+import type { DevToolsPosition, PrimaryTarget, WeaponSlot } from "./types";
+import type {
+  TunableWeaponSlot,
+  WeaponTuningField,
+} from "../game/stores/weaponSlice";
 import { useGameStore } from "@/components/game/stores/useGameStore";
 
 type GameShellProps = {
   children: ReactNode;
+  initialMode?: SprintMode;
 };
 
-const INITIAL_HEALTH = 100;
 const WEAPON_SLOTS: WeaponSlot[] = ["language", "sql", "locked3", "locked4"];
-const weaponBySlot: Partial<Record<WeaponSlot, Weapon>> = {
-  language: javascriptLanguageWeapon,
-  sql: sqlBowWeapon,
-};
-
-export function GameShell({ children }: GameShellProps) {
+export function GameShell({ children, initialMode = "sprint" }: GameShellProps) {
   // PlayerSlice
   const health = useGameStore((state) => state.health);
-  const xp = useGameStore((state) => state.xp);
-  const xpGoal = useGameStore((state) => state.xpGoal);
+  const damageMultiplier = useGameStore((state) => state.damageMultiplier);
+  const cooldownMultiplier = useGameStore((state) => state.cooldownMultiplier);
+  const applyRunStatAllocations = useGameStore(
+    (state) => state.applyRunStatAllocations,
+  );
   
   // GameSlice
   const grantXp = useGameStore((state) => state.grantXp);
+  const completePendingLevelUp = useGameStore(
+    (state) => state.completePendingLevelUp,
+  );
+  const pendingLevelUps = useGameStore((state) => state.pendingLevelUps);
   const takeDamage = useGameStore((state) => state.takeDamage);
   const defeatEnemy = useGameStore((state) => state.defeatEnemy);
   const resetRun = useGameStore((state) => state.resetRun);
+  const weaponsBySlot = useGameStore((state) => state.weaponsBySlot);
+  const codeFragments = useGameStore((state) => state.codeFragments);
+  const collectCodeFragments = useGameStore(
+    (state) => state.collectCodeFragments,
+  );
+  const grantCred = useGameStore((state) => state.grantCred);
+  const sprintMode = useGameStore((state) => state.sprintMode);
+  const sprintOutcome = useGameStore((state) => state.sprintOutcome);
+  const sprintStats = useGameStore((state) => state.sprintStats);
+  const isSprintRetroCredGranted = useGameStore(
+    (state) => state.isSprintRetroCredGranted,
+  );
+  const setSprintOutcome = useGameStore((state) => state.setSprintOutcome);
+  const setTimeSurvivedSeconds = useGameStore(
+    (state) => state.setTimeSurvivedSeconds,
+  );
+  const recordEnemyDefeated = useGameStore(
+    (state) => state.recordEnemyDefeated,
+  );
+  const markSprintRetroCredGranted = useGameStore(
+    (state) => state.markSprintRetroCredGranted,
+  );
+  const switchToWaterfall = useGameStore((state) => state.switchToWaterfall);
+  const purchasedGitFetchUpgrades = useGameStore(
+    (state) => state.purchasedGitFetchUpgrades,
+  );
+  const purchaseGitFetchUpgrade = useGameStore(
+    (state) => state.purchaseGitFetchUpgrade,
+  );
+  const updateTunedWeaponField = useGameStore(
+    (state) => state.updateWeaponField,
+  );
+  const setInvulnerable = useGameStore((state) => state.setInvulnerable);
   
   // UI responsible state hooks
-  const [weapon, setWeapon] = useState<Weapon>(javascriptLanguageWeapon);
-  const [enemy, setEnemy] = useState(() => spawnEnemy());
+  const [, setEnemy] = useState(() => spawnEnemy());
   const [readyAtBySlot, setReadyAtBySlot] = useState<
     Partial<Record<WeaponSlot, number>>
   >({});
-  const [isAttacking, setIsAttacking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [activeWeaponSlot, setActiveWeaponSlot] =
     useState<WeaponSlot>("language");
   const [isWeaponPanelOpen, setIsWeaponPanelOpen] = useState(false);
-  const [isUpgradePanelOpen, setIsUpgradePanelOpen] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(() => getInitialDevMode());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [devToolsPosition, setDevToolsPosition] =
-    useState<DevToolsPosition>("top");
+    useState<DevToolsPosition>(() => getInitialDevToolsPosition());
+  const [isDevToolsMinimized, setIsDevToolsMinimized] = useState(false);
   const [runStartedAt, setRunStartedAt] = useState(() => Date.now());
-  const [isRunVictorious, setIsRunVictorious] = useState(false);
+  const [pausedRunElapsedMs, setPausedRunElapsedMs] = useState(0);
+  const [isRunTimerPaused, setIsRunTimerPaused] = useState(true);
+  const [primaryTarget, setPrimaryTarget] = useState<PrimaryTarget | null>(null);
+  const [isEntryTransitionVisible, setIsEntryTransitionVisible] =
+    useState(true);
+  const [isEntryTransitionExiting, setIsEntryTransitionExiting] =
+    useState(false);
+  const [isEntryLogoDocked, setIsEntryLogoDocked] = useState(false);
+  const [isEntryLogoReady, setIsEntryLogoReady] = useState(false);
+  const inputMode = useInputMode();
   
 
   // constants  
   const isPlayerDefeated = health <= 0;
-  const activeReadyAt = readyAtBySlot[activeWeaponSlot] ?? 0;
-  const weaponReady = canAttack(activeReadyAt, now);
-  const cooldownRemaining = getCooldownRemaining(activeReadyAt, now);
+  const activeTunableSlot = getTunableWeaponSlot(activeWeaponSlot);
+  const weapon = weaponsBySlot[activeTunableSlot ?? "language"];
   const weaponCooldownProgressBySlot = getCooldownProgressBySlot(
     readyAtBySlot,
     now,
+    weaponsBySlot,
+    cooldownMultiplier,
   );
 
+  const runElapsedMs = isRunTimerPaused
+    ? pausedRunElapsedMs
+    : pausedRunElapsedMs + now - runStartedAt;
   const remainingRunSeconds = Math.max(
     0,
-    RUN_TUNING.survivalGoalSeconds -
-      Math.floor((now - runStartedAt) / 1000),
+    RUN_TUNING.survivalGoalSeconds - Math.floor(runElapsedMs / 1000),
   );
 
-  const isRunOver = !isRunVictorious && (isPlayerDefeated || remainingRunSeconds <= 0);
+  const elapsedRunSeconds =
+    sprintMode === "waterfall"
+      ? Math.floor(runElapsedMs / 1000)
+      : Math.min(
+          RUN_TUNING.survivalGoalSeconds,
+          Math.floor(runElapsedMs / 1000),
+        );
+  const isLevelUpModalOpen =
+    pendingLevelUps > 0 && sprintOutcome === "running";
 
-  const runTimeLabel = formatRunTime(remainingRunSeconds);
+  const runTimeLabel =
+    sprintMode === "waterfall"
+      ? formatRunTime(Math.floor(runElapsedMs / 1000))
+      : formatRunTime(remainingRunSeconds);
+  const sprintRetroSummary = useMemo(
+    () =>
+      sprintOutcome === "running"
+        ? null
+        : getSprintRetroSummary(sprintOutcome, {
+            ...sprintStats,
+            timeSurvivedSeconds: Math.max(
+              sprintStats.timeSurvivedSeconds,
+              elapsedRunSeconds,
+            ),
+          }),
+    [elapsedRunSeconds, sprintOutcome, sprintStats],
+  );
+  const isTouchLandscape = inputMode === "touch-landscape";
+
+  useEffect(() => {
+    resetRun();
+    if (getInitialDevMode()) {
+      setInvulnerable(true);
+    }
+
+    return () => {
+      const codeboundWindow = window as Window & {
+        __codeboundRunTimerPaused?: boolean;
+      };
+
+      codeboundWindow.__codeboundRunTimerPaused = true;
+      window.dispatchEvent(new Event("codebound:run-paused"));
+      window.dispatchEvent(
+        new CustomEvent("codebound:dev-run-timer-changed", {
+          detail: { isPaused: true, isRestarted: false },
+        }),
+      );
+    };
+  }, [resetRun, setInvulnerable]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(interval);
   }, []);
 
-  const selectWeapon = useCallback((slot: WeaponSlot) => {
-    const nextWeapon = weaponBySlot[slot];
-
-    if (!nextWeapon) {
-      setActiveWeaponSlot(slot);
+  useEffect(() => {
+    if (!isEntryLogoReady) {
       return;
     }
 
+    const exitTimeout = window.setTimeout(
+      () => setIsEntryTransitionExiting(true),
+      80,
+    );
+    const logoDockedTimeout = window.setTimeout(
+      () => setIsEntryLogoDocked(true),
+      2400,
+    );
+    const doneTimeout = window.setTimeout(() => {
+      setIsEntryTransitionVisible(false);
+      setPausedRunElapsedMs(0);
+      setRunStartedAt(Date.now());
+      setIsRunTimerPaused(false);
+    }, 2480);
+
+    return () => {
+      window.clearTimeout(exitTimeout);
+      window.clearTimeout(logoDockedTimeout);
+      window.clearTimeout(doneTimeout);
+    };
+  }, [isEntryLogoReady]);
+
+  useEffect(() => {
+    const codeboundWindow = window as Window & {
+      __codeboundDevMode?: boolean;
+      __codeboundRunTimerPaused?: boolean;
+    };
+
+    codeboundWindow.__codeboundDevMode = isDevMode;
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-mode-changed", {
+        detail: { isDevMode },
+      }),
+    );
+  }, [isDevMode]);
+
+  useEffect(() => {
+    const codeboundWindow = window as Window & {
+      __codeboundInputMode?: string;
+    };
+
+    codeboundWindow.__codeboundInputMode = inputMode;
+    window.dispatchEvent(
+      new CustomEvent("codebound:input-mode-changed", {
+        detail: { inputMode },
+      }),
+    );
+  }, [inputMode]);
+
+  useEffect(() => {
+    const codeboundWindow = window as Window & {
+      __codeboundRunTimerPaused?: boolean;
+    };
+
+    codeboundWindow.__codeboundRunTimerPaused = isRunTimerPaused;
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: isRunTimerPaused, isRestarted: false },
+      }),
+    );
+  }, [isRunTimerPaused]);
+
+  const selectWeapon = useCallback((slot: WeaponSlot) => {
     setActiveWeaponSlot(slot);
-    setWeapon(nextWeapon);
   }, []);
 
   const cycleWeapon = useCallback(
@@ -112,36 +269,28 @@ export function GameShell({ children }: GameShellProps) {
     [activeWeaponSlot, selectWeapon],
   );
 
-  const applyEnemyDamage = useCallback(
-    (damage: number) => {
-      setEnemy((currentEnemy) => {
-        const nextEnemy = damageEnemy(
-          { ...weapon, damage },
-          currentEnemy,
-        );
-
-        if (currentEnemy.health > 0 && nextEnemy.health === 0) {
-          window.setTimeout(() => {
-            setEnemy(spawnEnemy());
-          }, 600);
-        }
-
-        return nextEnemy;
-      });
-    },
-    [weapon, xpGoal],
-  );
-
   const fireWeapon = useCallback((slot: WeaponSlot) => {
-    if (isPlayerDefeated) {
+    if (
+      isPlayerDefeated ||
+      sprintOutcome !== "running" ||
+      isLevelUpModalOpen ||
+      isEntryTransitionVisible
+    ) {
       return;
     }
 
-    const selectedWeapon = weaponBySlot[slot];
+    const tunableSlot = getTunableWeaponSlot(slot);
 
-    if (!selectedWeapon) {
+    if (!tunableSlot) {
       return;
     }
+
+    const selectedWeapon = weaponsBySlot[tunableSlot];
+    const runtimeWeapon = {
+      ...selectedWeapon,
+      cooldown: selectedWeapon.cooldown * cooldownMultiplier,
+      damage: Math.round(selectedWeapon.damage * damageMultiplier),
+    };
 
     const attackTime = Date.now();
     const slotReadyAt = readyAtBySlot[slot] ?? 0;
@@ -152,36 +301,186 @@ export function GameShell({ children }: GameShellProps) {
 
     setReadyAtBySlot((current) => ({
       ...current,
-      [slot]: getNextReadyTime(selectedWeapon, attackTime),
+      [slot]: getNextReadyTime(runtimeWeapon, attackTime),
     }));
-    setIsAttacking(true);
     window.dispatchEvent(
       new CustomEvent("codebound:primary-weapon-fired", {
         detail: {
-          damage: selectedWeapon.damage,
-          effect: selectedWeapon.effect,
-          range: selectedWeapon.range,
+          attackId: `${slot}-${attackTime}`,
+          damage: runtimeWeapon.damage,
+          effect: runtimeWeapon.effect,
+          range: runtimeWeapon.range,
+          screenShakeIntensity: runtimeWeapon.screenShakeIntensity,
+          projectileCount: runtimeWeapon.projectileCount ?? 1,
+          pierce: runtimeWeapon.pierce ?? 0,
+          bounceCount: runtimeWeapon.bounceCount ?? 0,
         },
       }),
     );
 
-    window.setTimeout(() => setIsAttacking(false), 250);
-  }, [applyEnemyDamage, isPlayerDefeated, readyAtBySlot]);
+  }, [
+    cooldownMultiplier,
+    damageMultiplier,
+    isLevelUpModalOpen,
+    isEntryTransitionVisible,
+    isPlayerDefeated,
+    readyAtBySlot,
+    sprintOutcome,
+    weaponsBySlot,
+  ]);
 
   const handleAttack = useCallback(() => {
     fireWeapon(activeWeaponSlot);
   }, [activeWeaponSlot, fireWeapon]);
 
+  const handleWeaponActivate = useCallback(
+    (slot: WeaponSlot) => {
+      selectWeapon(slot);
+
+      if (inputMode === "touch-landscape") {
+        fireWeapon(slot);
+      }
+    },
+    [fireWeapon, inputMode, selectWeapon],
+  );
+
+  const spawnRandomEnemy = useCallback(() => {
+    const enemyDefinition = ENEMIES[Math.floor(Math.random() * ENEMIES.length)];
+
+    setEnemy(spawnEnemy(enemyDefinition.id));
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-spawn-enemy", {
+        detail: { enemyId: enemyDefinition.id },
+      }),
+    );
+  }, []);
+
+  const skipToMiniboss = useCallback(() => {
+    const minibossPreviewElapsedMs = 149_000;
+
+    setPausedRunElapsedMs(minibossPreviewElapsedMs);
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-skip-to-miniboss", {
+        detail: { elapsedMs: minibossPreviewElapsedMs },
+      }),
+    );
+  }, []);
+
+  const resumeSprint = useCallback(() => {
+    if (!isRunTimerPaused) {
+      return;
+    }
+
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: false, isRestarted: false },
+      }),
+    );
+    window.dispatchEvent(new Event("codebound:run-resumed"));
+  }, [isRunTimerPaused]);
+
+  const pauseSprint = useCallback(() => {
+    if (isRunTimerPaused) {
+      window.dispatchEvent(new Event("codebound:run-paused"));
+      return;
+    }
+
+    setPausedRunElapsedMs((elapsedMs) => elapsedMs + Date.now() - runStartedAt);
+    setIsRunTimerPaused(true);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: true, isRestarted: false },
+      }),
+    );
+    window.dispatchEvent(new Event("codebound:run-paused"));
+  }, [isRunTimerPaused, runStartedAt]);
+
+  const playRunTimer = resumeSprint;
+  const pauseRunTimer = pauseSprint;
+
+  const restartRunTimer = useCallback(() => {
+    setPausedRunElapsedMs(0);
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+    setPrimaryTarget(null);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: false, isRestarted: true },
+      }),
+    );
+  }, []);
+
   const restartRun = useCallback(() => {
     resetRun();
     setEnemy(spawnEnemy());
     setReadyAtBySlot({});
-    setIsAttacking(false);
+    setPausedRunElapsedMs(0);
     setRunStartedAt(Date.now());
-    setIsRunVictorious(false);
-    setIsUpgradePanelOpen(false);
+    setIsRunTimerPaused(false);
     window.dispatchEvent(new Event("codebound:run-restarted"));
   }, [resetRun]);
+
+  const startWaterfallMode = useCallback(() => {
+    switchToWaterfall();
+    setRunStartedAt(Date.now());
+    setIsRunTimerPaused(false);
+    window.dispatchEvent(
+      new CustomEvent("codebound:dev-run-timer-changed", {
+        detail: { isPaused: false, isRestarted: false },
+      }),
+    );
+    window.dispatchEvent(new Event("codebound:waterfall-started"));
+    window.dispatchEvent(new Event("codebound:run-resumed"));
+  }, [switchToWaterfall]);
+
+  useEffect(() => {
+    if (sprintOutcome !== "running" || isEntryTransitionVisible) {
+      return;
+    }
+
+    if (inputMode === "touch-portrait") {
+      const pauseTimeout = window.setTimeout(pauseSprint, 0);
+
+      return () => window.clearTimeout(pauseTimeout);
+    }
+
+    if (
+      inputMode === "touch-landscape" &&
+      isRunTimerPaused &&
+      !isLevelUpModalOpen
+    ) {
+      const resumeTimeout = window.setTimeout(resumeSprint, 0);
+
+      return () => window.clearTimeout(resumeTimeout);
+    }
+  }, [
+    inputMode,
+    isEntryTransitionVisible,
+    isLevelUpModalOpen,
+    isRunTimerPaused,
+    pauseSprint,
+    resumeSprint,
+    sprintOutcome,
+  ]);
+
+  useEffect(() => {
+    if (
+      initialMode !== "waterfall" ||
+      sprintMode === "waterfall" ||
+      isEntryTransitionVisible
+    ) {
+      return;
+    }
+
+    const startTimeout = window.setTimeout(startWaterfallMode, 120);
+
+    return () => window.clearTimeout(startTimeout);
+  }, [initialMode, isEntryTransitionVisible, sprintMode, startWaterfallMode]);
 
 
   useEffect(() => {
@@ -260,38 +559,48 @@ export function GameShell({ children }: GameShellProps) {
   }, [takeDamage]);
 
   useEffect(() => {
-    function handlePlayerProjectileHit(event: Event) {
-      const { damage } = (event as CustomEvent<{ damage: number }>).detail;
-      applyEnemyDamage(damage);
+    function handlePrimaryTargetUpdated(event: Event) {
+      setPrimaryTarget((event as CustomEvent<PrimaryTarget>).detail);
+    }
+
+    function handlePrimaryTargetCleared() {
+      setPrimaryTarget(null);
     }
 
     window.addEventListener(
-      "codebound:player-projectile-hit",
-      handlePlayerProjectileHit,
+      "codebound:primary-target-updated",
+      handlePrimaryTargetUpdated,
+    );
+    window.addEventListener(
+      "codebound:primary-target-cleared",
+      handlePrimaryTargetCleared,
     );
 
     return () => {
       window.removeEventListener(
-        "codebound:player-projectile-hit",
-        handlePlayerProjectileHit,
+        "codebound:primary-target-updated",
+        handlePrimaryTargetUpdated,
+      );
+      window.removeEventListener(
+        "codebound:primary-target-cleared",
+        handlePrimaryTargetCleared,
       );
     };
-  }, [applyEnemyDamage]);
+  }, []);
 
   useEffect(() => {
     function handleRewards(event: Event){
-      const {xpReward} = (event as CustomEvent<{xpReward: number}>).detail;
+      const {xpReward, attackId} = (event as CustomEvent<{
+        xpReward: number;
+        attackId?: string | null;
+      }>).detail;
 
-      // Return if run is over
-      if(isPlayerDefeated || remainingRunSeconds <= 0){
+      if (sprintOutcome !== "running") {
         return;
       }
 
-      if(xp+xpReward >= xpGoal){
-        setIsUpgradePanelOpen(true);
-      }
-
       defeatEnemy();
+      recordEnemyDefeated(attackId ?? null);
       grantXp(xpReward);
 
       }
@@ -300,42 +609,155 @@ export function GameShell({ children }: GameShellProps) {
     return () => {
       window.removeEventListener("codebound:enemy-defeated", handleRewards);
     };
-  },[defeatEnemy,grantXp,isPlayerDefeated,remainingRunSeconds,xp,xpGoal]);
+  },[defeatEnemy, grantXp, recordEnemyDefeated, sprintOutcome]);
   
   useEffect(() => {
-    if (isPlayerDefeated || remainingRunSeconds <= 0) {
-      window.dispatchEvent(new Event("codebound:run-paused"));
+    if (sprintOutcome !== "running") {
+      return;
     }
-  }, [isPlayerDefeated, remainingRunSeconds]);
 
-  const updateWeaponField = (
-    field: "damage" | "cooldown" | "range",
-    value: number,
-  ) => {
-    setWeapon((current) => ({ ...current, [field]: value }));
-  };
+    if (isPlayerDefeated) {
+      setTimeSurvivedSeconds(elapsedRunSeconds);
+      setSprintOutcome("defeat");
+      window.setTimeout(pauseSprint, 0);
+      return;
+    }
+
+    if (sprintMode === "sprint" && remainingRunSeconds <= 0) {
+      setTimeSurvivedSeconds(RUN_TUNING.survivalGoalSeconds);
+      setSprintOutcome("victory");
+      window.setTimeout(pauseSprint, 0);
+    }
+  }, [
+    elapsedRunSeconds,
+    isPlayerDefeated,
+    pauseSprint,
+    remainingRunSeconds,
+    setSprintOutcome,
+    setTimeSurvivedSeconds,
+    sprintMode,
+    sprintOutcome,
+  ]);
 
   useEffect(() => {
+    if (!isLevelUpModalOpen) {
+      return;
+    }
 
+    const pauseTimeout = window.setTimeout(pauseSprint, 0);
+
+    return () => window.clearTimeout(pauseTimeout);
+  }, [isLevelUpModalOpen, pauseSprint]);
+
+  useEffect(() => {
+    function handleCodeFragmentCollected(event: Event) {
+      const { amount } = (event as CustomEvent<{ amount: number }>).detail;
+
+      collectCodeFragments(amount);
+    }
+
+    window.addEventListener(
+      "codebound:code-fragment-collected",
+      handleCodeFragmentCollected,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "codebound:code-fragment-collected",
+        handleCodeFragmentCollected,
+      );
+    };
+  }, [collectCodeFragments]);
+
+  useEffect(() => {
+    if (!sprintRetroSummary || isSprintRetroCredGranted) {
+      return;
+    }
+
+    grantCred(sprintRetroSummary.credEarned);
+    markSprintRetroCredGranted();
+  }, [
+    grantCred,
+    isSprintRetroCredGranted,
+    markSprintRetroCredGranted,
+    sprintRetroSummary,
+  ]);
+
+  const updateWeaponField = (field: WeaponTuningField, value: number) => {
+    if (!activeTunableSlot) {
+      return;
+    }
+
+    updateTunedWeaponField(activeTunableSlot, field, value);
+  };
+
+  const confirmLevelUpStats = useCallback(
+    (allocations: Record<RunStatKey, number>) => {
+      applyRunStatAllocations(allocations);
+      completePendingLevelUp();
+
+      if (pendingLevelUps <= 1 && sprintOutcome === "running") {
+        resumeSprint();
+      }
+    },
+    [
+      applyRunStatAllocations,
+      completePendingLevelUp,
+      pendingLevelUps,
+      resumeSprint,
+      sprintOutcome,
+    ],
+  );
+
+  useEffect(() => {
     function handleVictory () {
-      setIsRunVictorious(true);
+      if (sprintMode !== "sprint" || sprintOutcome !== "running") {
+        return;
+      }
+
+      setTimeSurvivedSeconds(elapsedRunSeconds);
+      setSprintOutcome("victory");
+      window.setTimeout(pauseSprint, 0);
     }
 
     window.addEventListener("codebound:run-victory", handleVictory);
-    
+
     return () => {
       window.removeEventListener("codebound:run-victory", handleVictory)
     };
 
-  }, []);
+  }, [
+    elapsedRunSeconds,
+    pauseSprint,
+    setSprintOutcome,
+    setTimeSurvivedSeconds,
+    sprintMode,
+    sprintOutcome,
+  ]);
 
   // WHERE COMPONENT RENDERING BEGINS!
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#071018] text-white">
+    <main
+      className={`relative min-h-screen overflow-hidden bg-[#071018] text-white ${
+        isEntryTransitionVisible ? "game-shell--entry-active" : ""
+      } ${
+        isEntryTransitionVisible && isEntryTransitionExiting
+          ? "game-shell--entry-exiting"
+          : ""
+      } ${isTouchLandscape ? "game-shell--touch-landscape" : ""}`}
+    >
       <section className="absolute inset-0 z-0 bg-[#071018]">{children}</section>
 
       {isDevMode ? (
         <DevControls
+          isMinimized={isDevToolsMinimized}
+          isRunTimerPaused={isRunTimerPaused}
+          onMinimizedChange={setIsDevToolsMinimized}
+          onRunTimerPause={pauseRunTimer}
+          onRunTimerPlay={playRunTimer}
+          onRunTimerRestart={restartRunTimer}
+          onSkipToMiniboss={skipToMiniboss}
+          onSpawnEnemy={spawnRandomEnemy}
           position={devToolsPosition}
           setPosition={setDevToolsPosition}
         />
@@ -343,11 +765,8 @@ export function GameShell({ children }: GameShellProps) {
 
       {isWeaponPanelOpen ? (
         <WeaponPanel
-          cooldownRemaining={cooldownRemaining}
-          isReady={weaponReady}
           mode={isDevMode ? "dev" : "player"}
           onClose={() => setIsWeaponPanelOpen(false)}
-          onAttack={handleAttack}
           onCooldownChange={(value) => updateWeaponField("cooldown", value)}
           onDamageChange={(value) => updateWeaponField("damage", value)}
           onRangeChange={(value) => updateWeaponField("range", value)}
@@ -355,58 +774,31 @@ export function GameShell({ children }: GameShellProps) {
         />
       ) : null}
 
-      {isAttacking ? (
-        <div className="pointer-events-none absolute left-1/2 top-1/3 z-20 -translate-x-1/2">
-          <div className="relative flex h-24 w-24 items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-cyan-300/30 blur-xl animate-ping" />
-            <div className="relative h-12 w-12 rounded-full bg-cyan-200/90 shadow-[0_0_30px_rgba(56,189,248,0.85)]" />
-          </div>
-        </div>
+
+      {sprintRetroSummary ? (
+        <SprintRetroModal
+          summary={sprintRetroSummary}
+          onRestart={restartRun}
+          onSwitchToWaterfall={startWaterfallMode}
+        />
       ) : null}
 
-      {isRunOver ? (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
-          <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
-            <div className="text-sm font-bold uppercase tracking-wide text-red-200">
-              Run Failed
-            </div>
-            <div className="mt-2 text-3xl font-bold text-white">
-              You have been laid off!
-            </div>
-            <button
-              type="button"
-              className="mt-5 cursor-pointer border-2 border-cyan-300/70 bg-cyan-500/15 px-5 py-3 font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-400/25"
-              onClick={restartRun}
-            >
-              Restart Run
-            </button>
-          </section>
-        </div>
-      ) : null}
-
-      {isRunVictorious ? (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#071018]/82">
-          <section className="pointer-events-auto flex w-[min(420px,calc(100vw-32px))] flex-col items-center border-2 border-red-300/50 bg-black/80 p-6 text-center shadow-[0_0_48px_rgba(248,113,113,0.2)]">
-            <div className="text-sm font-bold uppercase tracking-wide text-red-200">
-              Successful Run!
-            </div>
-            <div className="mt-2 text-3xl font-bold text-white">
-              You have a job offer waiting!
-            </div>
-            <button
-              type="button"
-              className="mt-5 cursor-pointer border-2 border-cyan-300/70 bg-cyan-500/15 px-5 py-3 font-bold text-cyan-100 transition hover:border-cyan-100 hover:bg-cyan-400/25"
-              onClick={restartRun}
-            >
-              Restart Run
-            </button>
-          </section>
-        </div>
+      {isLevelUpModalOpen ? (
+        <LevelUpModal
+          codeFragments={codeFragments}
+          pendingLevelUps={pendingLevelUps}
+          purchasedGitFetchUpgrades={purchasedGitFetchUpgrades}
+          onConfirmStats={confirmLevelUpStats}
+          onPurchaseUpgrade={purchaseGitFetchUpgrade}
+        />
       ) : null}
 
       <GameHud
-        enemy = {enemy}
+        primaryTarget={primaryTarget}
         runTimeLabel={runTimeLabel}
+        isWaterfallMode={sprintMode === "waterfall"}
+        isEntryTransitionActive={isEntryTransitionVisible && !isEntryLogoDocked}
+        inputMode={inputMode}
         isDevMode={isDevMode}
         isSettingsOpen={isSettingsOpen}
         onDevModeChange={setIsDevMode}
@@ -416,13 +808,53 @@ export function GameShell({ children }: GameShellProps) {
             activeWeaponSlot === slot ? !isOpen : true,
           );
         }}
-        onWeaponSelect={selectWeapon}
+        onWeaponSelect={handleWeaponActivate}
         onSettingsClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
         selectedSlot={activeWeaponSlot}
         weaponCooldownProgressBySlot={weaponCooldownProgressBySlot}
       />
+
+      {inputMode === "touch-portrait" ? <RotateDeviceOverlay /> : null}
+
+      {isEntryTransitionVisible ? (
+        <div
+          className={`game-entry-overlay ${
+            isEntryTransitionExiting ? "game-entry-overlay--exit" : ""
+          }`}
+        >
+          <div className="game-entry-whiteout codebound-loading-backdrop" />
+          <Image
+            alt="Codebound"
+            className="game-entry-logo"
+            height={1344}
+            onError={() => setIsEntryLogoReady(true)}
+            onLoad={() => setIsEntryLogoReady(true)}
+            priority
+            src="/images/codebound-logo.png"
+            width={3168}
+          />
+          <div className="game-entry-loading">
+            <div className="h-32 w-32 animate-ping rounded-full bg-cyan-200/20" />
+            <div className="absolute text-2xl font-black uppercase tracking-[0.3em] text-cyan-50">
+              Loading
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function getInitialDevMode() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return new URLSearchParams(window.location.search).get("devMode") === "true";
+}
+
+function getInitialDevToolsPosition(): DevToolsPosition {
+  return getInitialDevMode() ? "left" : "top";
 }
 
 function formatRunTime(totalSeconds: number) {
@@ -457,10 +889,13 @@ function getQuickWeaponSlot(code: string): WeaponSlot | null {
 function getCooldownProgressBySlot(
   readyAtBySlot: Partial<Record<WeaponSlot, number>>,
   now: number,
+  weaponsBySlot: Record<TunableWeaponSlot, { cooldown: number }>,
+  cooldownMultiplier: number,
 ) {
   return Object.fromEntries(
     WEAPON_SLOTS.map((slot) => {
-      const slotWeapon = weaponBySlot[slot];
+      const tunableSlot = getTunableWeaponSlot(slot);
+      const slotWeapon = tunableSlot ? weaponsBySlot[tunableSlot] : null;
       const readyAt = readyAtBySlot[slot] ?? 0;
 
       if (!slotWeapon || canAttack(readyAt, now)) {
@@ -469,8 +904,59 @@ function getCooldownProgressBySlot(
 
       return [
         slot,
-        Math.min(1, Math.max(0, (readyAt - now) / (slotWeapon.cooldown * 1000))),
+        Math.min(
+          1,
+          Math.max(
+            0,
+            (readyAt - now) / (slotWeapon.cooldown * cooldownMultiplier * 1000),
+          ),
+        ),
       ];
     }),
   ) as Partial<Record<WeaponSlot, number>>;
+}
+
+function getTunableWeaponSlot(slot: WeaponSlot): TunableWeaponSlot | null {
+  if (slot === "language" || slot === "sql") {
+    return slot;
+  }
+
+  return null;
+}
+
+function getSprintRetroSummary(
+  outcome: "victory" | "defeat",
+  stats: SprintRetroSummary["stats"],
+): SprintRetroSummary {
+  const accomplishments: SprintRetroSummary["accomplishments"] = [];
+
+  if (stats.damageTaken === 0) {
+    accomplishments.push({
+      id: "perfect",
+      label: "Perfect - Took no damage",
+      cred: 25,
+    });
+  }
+
+  if (stats.maxKillsInOneAttack >= 5) {
+    accomplishments.push({
+      id: "five-in-one",
+      label: "Killed 5 enemies with one blow",
+      cred: 20,
+    });
+  }
+
+  const credEarned =
+    (outcome === "victory" ? 50 : 10) +
+    stats.enemiesDefeated +
+    Math.floor(stats.timeSurvivedSeconds / 15) +
+    Math.floor(stats.codeFragmentsFound / 25) +
+    accomplishments.reduce((total, item) => total + item.cred, 0);
+
+  return {
+    outcome,
+    stats,
+    accomplishments,
+    credEarned,
+  };
 }

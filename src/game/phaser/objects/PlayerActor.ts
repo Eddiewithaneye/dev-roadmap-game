@@ -6,8 +6,10 @@ export class PlayerActor {
   readonly container: Phaser.GameObjects.Container;
   private facing: -1 | 1 = PLAYER_PLACEHOLDER_TUNING.facing;
   private depthScale: number = PLAYER_PLACEHOLDER_TUNING.scale;
+  private gameplayScale: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, gameplayScale = 1) {
+    this.gameplayScale = gameplayScale;
     const shadow = scene.add.ellipse(0, 6, 58, 12, 0x000000, 0.34);
     const legs = scene.add.rectangle(0, -18, 42, 34, 0x0f2f44);
     const body = scene.add.rectangle(0, -58, 58, 56, 0x0891b2);
@@ -32,7 +34,7 @@ export class PlayerActor {
       PLAYER_PLACEHOLDER_TUNING.widthPx,
       PLAYER_PLACEHOLDER_TUNING.heightPx,
     );
-    this.container.setScale(PLAYER_PLACEHOLDER_TUNING.scale);
+    this.applyScale();
   }
 
   setPosition(x: number, y: number) {
@@ -49,15 +51,29 @@ export class PlayerActor {
     return this.facing;
   }
 
+  getCastOrigin() {
+    return {
+      x: this.container.x + 34 * this.container.scaleX,
+      y: this.container.y - 88 * this.container.scaleY,
+    };
+  }
+
   setDepthScale(scale: number) {
     this.depthScale = scale;
     this.applyScale();
   }
 
+  getDepthScale() {
+    return this.depthScale;
+  }
+
   private applyScale() {
     this.container.setScale(
-      PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale * this.facing,
-      PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale,
+      PLAYER_PLACEHOLDER_TUNING.scale *
+        this.depthScale *
+        this.gameplayScale *
+        this.facing,
+      PLAYER_PLACEHOLDER_TUNING.scale * this.depthScale * this.gameplayScale,
     );
   }
 }

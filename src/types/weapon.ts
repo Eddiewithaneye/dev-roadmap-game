@@ -6,6 +6,7 @@ export type WeaponCategory =
   | "Platform";
 
 export type WeaponEffect = "chain-spark" | "straight-shot";
+export type ScreenShakeIntensity = "none" | "light" | "normal" | "heavy";
 
 export type Weapon = {
   category: WeaponCategory;
@@ -17,6 +18,10 @@ export type Weapon = {
   range: number;
   icon: string;
   effect: WeaponEffect;
+  screenShakeIntensity: ScreenShakeIntensity;
   visualEffect?: string;
   imageSrc?: string;
+  projectileCount?: number;
+  pierce?: number;
+  bounceCount?: number;
 };

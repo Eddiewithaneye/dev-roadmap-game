@@ -1,10 +1,16 @@
 export const RUN_TUNING = {
-  survivalGoalSeconds: 60,
+  survivalGoalSeconds: 180,
   initialSpawnDelayMs: 500,
   baseSpawnIntervalMs: 3500,
   minimumSpawnIntervalMs: 2500,
   maximumSpawnIntervalMs: 8000,
   spawnIntervalChangeMs: 500,
-  maxActiveEnemies: 2,
+  maxActiveEnemies: 12,
   enemyDefeatGoal: 5,
+  sprintPressureSpawnStartMs: 12_000,
+  sprintPressureSpawnIntervalMs: 4_500,
+  sprintPressureMinimumEnemies: 5,
+  waterfallWaveIntervalMs: 18_000,
+  waterfallInitialEnemyCount: 10,
+  waterfallEnemyIncreasePerWave: 2,
 } as const;

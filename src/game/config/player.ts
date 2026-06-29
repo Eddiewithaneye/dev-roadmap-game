@@ -16,5 +16,5 @@ export const PLAYER_PLACEHOLDER_TUNING = {
 } as const;
 
 export const PLAYER_MOVEMENT_TUNING = {
-  speedPxPerSecond: 280,
+  speedPxPerSecond: 320,
 } as const;

@@ -40,7 +40,7 @@ export function attackEnemy(
   };
 }
 
-export function spawnEnemy(enemyId = ENEMIES[0].id): Enemy {
+export function spawnEnemy(enemyId: string = ENEMIES[0].id): Enemy {
   const definition =
     ENEMIES.find((enemy) => enemy.id === enemyId) ?? ENEMIES[0];
 
