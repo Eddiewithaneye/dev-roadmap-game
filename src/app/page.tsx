@@ -11,7 +11,6 @@ export default async function Home() {
     <div className="min-h-dvh bg-[#071018] font-sans text-white">
       <main className="flex min-h-dvh flex-col">
         <ModeDoorSelect />
-
         <footer className="home-footer w-full shrink-0 border-t border-cyan-300/15 bg-[#071018]">
           <section className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-2 text-xs font-medium text-slate-300 sm:flex-row sm:items-center sm:justify-between">
             {session ? (

@@ -24,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: 'database',
   },
   callbacks:{
-    session({ session, user}){
+    session({ session, user }){
       if(session.user){
         session.user.id = user.id;
       }

@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm"
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   serial,
@@ -100,3 +102,41 @@ export const authenticators = pgTable(
     }),
   })
 );
+
+// create a player progress table
+export const playerProgress = pgTable("player_progress", {
+  // link this progress row to one player profile
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => playerProfiles.userId, { onDelete: "cascade" }),
+
+  // store persistent currency
+  cred: integer("cred").default(0).notNull(),
+
+  // store unlocked language ids like ["javascript", "sql"]
+  unlockedLanguages: jsonb("unlocked_languages")
+    .$type<string[]>()
+    .default(sql`'[]'::jsonb`)
+    .notNull(),
+
+  // store unlocked concept ids like ["variables", "functions"]
+  unlockedConcepts: jsonb("unlocked_concepts")
+    .$type<string[]>()
+    .default(sql`'[]'::jsonb`)
+    .notNull(),
+
+  // store permanent upgrade levels like { "js-damage": 2, "sql-pierce": 1 }
+  permanentUpgradeLevels: jsonb("permanent_upgrade_levels")
+    .$type<Record<string, number>>()
+    .default(sql`'{}'::jsonb`)
+    .notNull(),
+
+  // track when this progress row was created
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+
+  // track when this progress row was last updated
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
