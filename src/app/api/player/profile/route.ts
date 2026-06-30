@@ -1,32 +1,45 @@
-import { NextResponse } from "next/server"; // returns JSON responses
-import {auth} from "@/auth"
-import { getOrCreatePlayerProfile } from "@/lib/db/playerProfiles"; //profile helper
+// import the helper that creates JSON responses
+import { NextResponse } from "next/server";
 
-// create backend route handler
-export async function GET(){
-    const session = await auth(); // who is logged in?
-    
-    // logic for unauthorized user
-    if (!session?.user?.id){
-        return NextResponse.json(
-            { error: "Unauthorized"},
-            { status: 401 }
-        );
-    }
+// import auth so the endpoint can identify the logged-in user
+import { auth } from "@/auth";
 
-    const displayName = 
-        session.user.name ?? session.user.email ?? "Developer";
+// import only the read helper
+import { getPlayerProfile } from "@/lib/db/playerProfiles";
 
-    const profile = await getOrCreatePlayerProfile(
-        session.user.id,
-        displayName,
+// make this route run in the Node.js runtime
+export const runtime = "nodejs";
+
+// handle GET /api/player/profile
+export async function GET() {
+  // ask Auth.js who is logged in
+  const session = await auth();
+
+  // stop if there is no logged-in user id
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 },
     );
+  }
 
-    return NextResponse.json({
-        profile: {
-            displayName: profile.displayName,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-        },
-    });
+  // get the profile for the logged-in user
+  const profile = await getPlayerProfile(session.user.id);
+
+  // return a clear missing-profile response if none exists
+  if (!profile) {
+    return NextResponse.json(
+      { profile: null },
+      { status: 404 },
+    );
+  }
+
+  // return safe public profile data
+  return NextResponse.json({
+    profile: {
+      displayName: profile.displayName,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    },
+  });
 }
